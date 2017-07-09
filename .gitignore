@@ -1,0 +1,6 @@
+client_secrets_yt.json
+example.py-oauth2.json
+.idea/*
+*.pyc
+youtube3/__pycache__/*
+
