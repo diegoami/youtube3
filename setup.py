@@ -10,9 +10,10 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='youtube3',
-    version='0.1dev',
+    version='0.0.1',
     packages=['youtube3'],
     include_package_data=True,
+    keywords='youtube wrapper oauth2 v3',
     license='BSD License',
     install_requires=['google-api-python-client', 'oauth2client'],
     description='Python Youtube v3 API Wrapper',

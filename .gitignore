@@ -3,4 +3,5 @@ example.py-oauth2.json
 .idea/*
 *.pyc
 youtube3/__pycache__/*
+*.py-oauth2.json
 
