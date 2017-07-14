@@ -54,9 +54,9 @@ class Youtube :
         channelId= result['items'][0]['snippet']['channelId']
         return channelId
 
-    def get_related_videos(self, videoId):
+    def get_related_videos(self, videoId,nextPageToken=None):
         return self.youtube.search().list(
-            part='snippet', type="video", relatedToVideoId=videoId
+            part='snippet', type="video", relatedToVideoId=videoId, pageToken=nextPageToken
         ).execute()
 
 
@@ -67,15 +67,43 @@ class Youtube :
 
     def liked_channel(self):
         channels = self.youtube.channels().list(
-            part='contentDetails', mine="true"
+            part='snippet,contentDetails', mine="true"
         ).execute()
-        return channels['items'][0]['contentDetails']['relatedPlaylists']['likes']
+        try:
+            return channels['items'][0]['contentDetails']['relatedPlaylists']['likes']
+        except:
+            return None
 
-    def videos_in_channels(self, channelid, nextPageToken=None):
+    def videos_in_channels(self, channelId, nextPageToken=None):
+
         playlistItems = self.youtube.playlistItems().list(
-            part='snippet', playlistId=channelid, pageToken=nextPageToken
+            part='snippet,contentDetails', playlistId=channelId, pageToken=nextPageToken
         ).execute()
         return playlistItems
+
+    def iterate_videos_in_channel(self, channelId,maxCount=None):
+        count = 0
+        videos = self.videos_in_channels(channelId)
+        yield videos
+        count += 1
+        while 'nextPageToken' in videos:
+            videos = self.videos_in_channels(channelId,videos['nextPageToken'])
+            yield videos
+            count += 1
+            if maxCount and count > int(maxCount):
+                break
+
+    def iterate_related_videos(self, videoId,maxCount=None):
+        count = 0
+        videos = self.get_related_videos(videoId)
+        yield videos
+        count += 1
+        while 'nextPageToken' in videos:
+            videos = self.get_related_videos(videoId,videos ['nextPageToken'])
+            yield videos
+            count  += 1
+            if maxCount and count > int(maxCount):
+                break
 
     def subscribe_channel(self, channelId):
         self.youtube.subscriptions().insert(
