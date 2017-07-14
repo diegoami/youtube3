@@ -13,8 +13,10 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     count = 0
     recommended = {}
+    excluded
     inputFile = args.inputFile or 'liked.json'
     recommendedFile = args.recommendedFile or 'recommended.json'
+    excludedFile = args.excludedFile or 'excluded.json'
     maxCount = args.maxCount or 5
 
     with open(args.workDir+'/'+inputFile,'r',encoding="utf-8") as f:
@@ -22,6 +24,11 @@ if __name__ == "__main__":
     if os.path.isfile(args.workDir + '/'+recommendedFile ):
         with open(args.workDir + '/'+recommendedFile , 'r', encoding="utf-8") as f:
             recommended = dict(json.load(f))
+
+    if os.path.isfile(args.workDir + '/'+excludedFile ):
+        with open(args.workDir + '/'+excludedFile , 'r', encoding="utf-8") as f:
+            excluded = dict(json.load(f))
+
 
     start = int(args.start) or 0
     end = min(int(args.end),len(liked)) or len(liked)
@@ -34,7 +41,7 @@ if __name__ == "__main__":
         for relatedvideos in youtube.iterate_related_videos(videoId,maxCount):
             for item in relatedvideos['items']:
                 rvideoId, rtitle = item['id']['videoId'],item['snippet']['title']
-                if rvideoId not in liked:
+                if rvideoId not in liked and rvideo not in excluded:
                     if rvideoId not in recommended:
                         recommended[rvideoId] = {"title" : rtitle,"count" : 1}
                     else:
