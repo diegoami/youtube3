@@ -4,4 +4,8 @@ example.py-oauth2.json
 *.pyc
 youtube3/__pycache__/*
 *.py-oauth2.json
+build/*
+dist/*
+youtube3.egg-info/*
+
 

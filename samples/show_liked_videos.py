@@ -3,7 +3,8 @@ from oauth2client.tools import argparser
 
 if __name__ == "__main__":
     args = argparser.parse_args()
-    youtube = Youtube(args)
+    youtube = Youtube(get_authenticated_service(args))
+
     likedchannel  = youtube.liked_channel()
     print(likedchannel)
     videos1 = youtube.videos_in_channels(likedchannel)

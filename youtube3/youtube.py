@@ -8,24 +8,25 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run_flow
 
+
+def get_authenticated_service( args):
+    flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE,
+                                   scope=YOUTUBE_READ_WRITE_SCOPE,
+                                   message=MISSING_CLIENT_SECRETS_MESSAGE)
+
+    storage = Storage("%s-oauth2.json" % sys.argv[0])
+    credentials = storage.get()
+
+    if credentials is None or credentials.invalid:
+        credentials = run_flow(flow, storage, args)
+
+    return discovery.build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
+                           http=credentials.authorize(httplib2.Http()))
+
+
 class Youtube :
-    def __init__(self,args):
-        self.youtube = self.get_authenticated_service(args)
-
-
-    def get_authenticated_service(self,args):
-        flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE,
-        scope=YOUTUBE_READ_WRITE_SCOPE,
-        message=MISSING_CLIENT_SECRETS_MESSAGE)
-
-        storage = Storage("%s-oauth2.json" % sys.argv[0])
-        credentials = storage.get()
-
-        if credentials is None or credentials.invalid:
-            credentials = run_flow(flow, storage, args)
-
-        return discovery.build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
-            http=credentials.authorize(httplib2.Http()))
+    def __init__(self,youtube):
+        self.youtube = youtube
 
     def list_channels(self,id):
         return self.youtube.channels().list(part="contentDetails",id=id).execute()
