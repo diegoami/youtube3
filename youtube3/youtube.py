@@ -2,6 +2,7 @@
 import httplib2
 import os
 import sys
+from youtube_dl import YoutubeDL,DEFAULT_OUTTMPL
 from youtube3.common import *
 from apiclient import discovery
 from oauth2client.client import flow_from_clientsecrets
@@ -22,6 +23,7 @@ def get_authenticated_service( args):
 
     return discovery.build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
                            http=credentials.authorize(httplib2.Http()))
+
 
 
 class Youtube :
@@ -58,7 +60,6 @@ class Youtube :
         return self.youtube.search().list(
             part='snippet', type="video", relatedToVideoId=videoId, pageToken=nextPageToken
         ).execute()
-
 
     def get_channels(self):
         return self.youtube.channels().list(
@@ -116,3 +117,25 @@ class Youtube :
                 )
             )).execute()
 
+
+    def build_download_params(self, outDir, onlyAudio=False):
+        outDir = outDir if outDir[-1] == '/' else outDir + '/'
+        params = {'outtmpl': outDir + DEFAULT_OUTTMPL, "nooverwrites": True}
+        if onlyAudio:
+            params.update({
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio'
+
+                }]
+            })
+        return params
+
+    def download(self, videoId, outDir, onlyAudio=False):
+        url = "http://www.youtube.com/watch?v="+videoId
+        with YoutubeDL(self.build_download_params(outDir,onlyAudio)) as ydl:
+            ydl.download([url])
+
+    def download_list(self, videoId_lst, outDir, onlyAudio=False):
+        urlList = ["http://www.youtube.com/watch?v="+videoId for videoId in videoId_lst]
+        with YoutubeDL(self.build_download_params(outDir,onlyAudio)) as ydl:
+            ydl.download(urlList)
