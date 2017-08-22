@@ -120,7 +120,7 @@ class Youtube :
 
     def build_download_params(self, outDir, onlyAudio=False):
         outDir = outDir if outDir[-1] == '/' else outDir + '/'
-        params = {'outtmpl': outDir + DEFAULT_OUTTMPL, "nooverwrites": True}
+        params = {'outtmpl': outDir + DEFAULT_OUTTMPL, "nooverwrites": True, "format" : "best" }
         if onlyAudio:
             params.update({
                 'postprocessors': [{
@@ -134,6 +134,7 @@ class Youtube :
         url = "http://www.youtube.com/watch?v="+videoId
         with YoutubeDL(self.build_download_params(outDir,onlyAudio)) as ydl:
             ydl.download([url])
+
 
     def download_list(self, videoId_lst, outDir, onlyAudio=False):
         urlList = ["http://www.youtube.com/watch?v="+videoId for videoId in videoId_lst]
