@@ -1,4 +1,4 @@
-from youtube3.youtube import *
+from youtube3 import Youtube, get_authenticated_service
 from oauth2client.tools import argparser
 
 if __name__ == "__main__":
