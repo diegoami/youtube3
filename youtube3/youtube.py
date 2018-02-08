@@ -46,6 +46,7 @@ class Youtube :
         part='snippet'
       ).execute()
 
+
     def get_recommended(self):
         return self.youtube.activities().list(
             part='snippet',mine=True
@@ -61,10 +62,28 @@ class Youtube :
             part='snippet', type="video", relatedToVideoId=videoId, pageToken=nextPageToken
         ).execute()
 
+    def get_subscriptions_channel_ids(self, nextPageToken=None):
+        subscriptions = self.youtube.subscriptions().list(
+            part='snippet, contentDetails', mine="true", pageToken=nextPageToken
+        ).execute()
+        nextPageToken = subscriptions.get('nextPageToken', None)
+        items = [{'id': item['snippet']['resourceId']['channelId'], 'title' : item['snippet']['title'] }
+                 for item in subscriptions['items']]
+        return items, nextPageToken
+
     def get_channels(self):
         return self.youtube.channels().list(
             part='contentDetails', mine="true"
         ).execute()
+
+
+    def iterate_subscriptions_in_channel(self):
+
+        items, nextPageToken = self.get_subscriptions_channel_ids()
+        yield from items
+        while nextPageToken:
+            items, nextPageToken = self.get_subscriptions_channel_ids(nextPageToken )
+            yield from items
 
     def liked_channel(self):
         channels = self.youtube.channels().list(
@@ -105,6 +124,8 @@ class Youtube :
             count  += 1
             if maxCount and count > int(maxCount):
                 break
+
+
 
     def subscribe_channel(self, channelId):
         self.youtube.subscriptions().insert(
