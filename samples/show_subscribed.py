@@ -7,3 +7,4 @@ if __name__ == "__main__":
     youtube = Youtube(get_authenticated_service(args))
     for subscription_id in youtube.iterate_subscriptions_in_channel():
         print(subscription_id)
+      #  print(youtube.get_channel_title(subscription_id))

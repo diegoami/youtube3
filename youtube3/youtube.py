@@ -40,6 +40,20 @@ class Youtube :
       ).execute()
 
 
+    def get_channel(self, channel_id):
+      return self.youtube.channels().list(
+        id=channel_id,
+        part='snippet'
+      ).execute()
+
+
+    def get_channel_title(self, channel_id):
+        result = self.get_channel(channel_id)
+        if result:
+            channel_title = result['items'][0]['snippet']['title']
+            return channel_title
+
+
     def get_video(self, video_id):
       return self.youtube.videos().list(
         id=video_id,
@@ -54,7 +68,7 @@ class Youtube :
 
     def get_channel_id(self, videoId):
         result = self.get_video(videoId)
-        channelId= result['items'][0]['snippet']['channelId']
+        channelId = result['items'][0]['snippet']['channelId']
         return channelId
 
     def get_related_videos(self, videoId,nextPageToken=None):
