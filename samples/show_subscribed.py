@@ -1,10 +1,9 @@
-from youtube3.youtube import *
+from youtube3.youtube_client import *
 from oauth2client.tools import argparser
+from googleapiclient import sample_tools
+import os
 
 if __name__ == "__main__":
-    argparser.add_argument('--channelId')
-    args = argparser.parse_args()
-    youtube = Youtube(get_authenticated_service(args))
+    youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
     for subscription_id in youtube.iterate_subscriptions_in_channel():
         print(subscription_id)
-      #  print(youtube.get_channel_title(subscription_id))

@@ -1,36 +1,20 @@
-#!/usr/bin/python
-import httplib2
-import os
-import sys
-from youtube_dl import YoutubeDL,DEFAULT_OUTTMPL
-from youtube3.common import *
-from apiclient import discovery
-from oauth2client.client import flow_from_clientsecrets
-from oauth2client.file import Storage
-from oauth2client.tools import run_flow
+
+from googleapiclient import sample_tools
 
 
-def get_authenticated_service( args):
-    flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE,
-                                   scope=YOUTUBE_READ_WRITE_SCOPE,
-                                   message=MISSING_CLIENT_SECRETS_MESSAGE)
+class YoutubeClient:
+    def __init__(self, client_json_file):
+        service, flags = self.login(client_json_file)
+        self.youtube = service
 
-    storage = Storage("%s-oauth2.json" % sys.argv[0])
-    credentials = storage.get()
-
-    if credentials is None or credentials.invalid:
-        credentials = run_flow(flow, storage, args)
-
-    return discovery.build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION,
-                           http=credentials.authorize(httplib2.Http()))
+    def login(self, client_json_file):
+        service, flags = sample_tools.init(
+            ['--noauth_local_webserver'], 'youtube', 'v3', __doc__, client_json_file,
+            scope='https://www.googleapis.com/auth/youtube')
+        return service, flags
 
 
-
-class Youtube :
-    def __init__(self,youtube):
-        self.youtube = youtube
-
-    def list_channels(self,id):
+    def list_channels(self, id):
         return self.youtube.channels().list(part="contentDetails",id=id).execute()
 
     def like_video(self, video_id):
@@ -152,26 +136,32 @@ class Youtube :
                 )
             )).execute()
 
+    def verify_video(self, video_id, country='DE'):
+        try:
+            videos = self.youtube.videos().list(
+                id=video_id,
+                part='contentDetails'
+            ).execute()
+            if 'items' in videos:
+                video_items = videos['items']
+                if video_items:
+                    if video_items[0]:
+                        if 'contentDetails' in video_items[0]:
+                            contentDetails = video_items[0]['contentDetails']
+                            if 'regionRestriction' in contentDetails and 'blocked' in contentDetails[
+                                'regionRestriction'] and country in contentDetails['regionRestriction']['blocked']:
+                                return False
+                            else:
+                                return True
+                        else:
+                            return False
+                    else:
+                        return False
+                else:
+                    return False
+            else:
+                return False
+        except:
+            return False
 
-    def build_download_params(self, outDir, onlyAudio=False):
-        outDir = outDir if outDir[-1] == '/' else outDir + '/'
-        params = {'outtmpl': outDir + DEFAULT_OUTTMPL, "nooverwrites": True, "format" : "best" }
-        if onlyAudio:
-            params.update({
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio'
 
-                }]
-            })
-        return params
-
-    def download(self, videoId, outDir, onlyAudio=False):
-        url = "http://www.youtube.com/watch?v="+videoId
-        with YoutubeDL(self.build_download_params(outDir,onlyAudio)) as ydl:
-            ydl.download([url])
-
-
-    def download_list(self, videoId_lst, outDir, onlyAudio=False):
-        urlList = ["http://www.youtube.com/watch?v="+videoId for videoId in videoId_lst]
-        with YoutubeDL(self.build_download_params(outDir,onlyAudio)) as ydl:
-            ydl.download(urlList)

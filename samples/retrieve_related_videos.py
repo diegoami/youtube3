@@ -1,5 +1,6 @@
-from youtube3.youtube import *
+from youtube3.youtube_client import *
 import json
+import os
 from oauth2client.tools import argparser
 
 if __name__ == "__main__":
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     start = int(args.start) if args.start else 0
     end = min(int(args.end),len(liked)) if args.end else len(liked)
 
-    youtube = Youtube(get_authenticated_service(args))
+    youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
 
     likedList = list(liked.items())[start:end]
     for videoId,title in likedList:

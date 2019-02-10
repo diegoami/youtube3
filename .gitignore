@@ -1,4 +1,5 @@
 client_secrets_yt.json
+client_secrets.json
 example.py-oauth2.json
 .idea/*
 *.pyc

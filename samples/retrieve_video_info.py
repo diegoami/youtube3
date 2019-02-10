@@ -1,5 +1,6 @@
-from youtube3 import Youtube, get_authenticated_service
+from youtube3 import YoutubeClient
 from oauth2client.tools import argparser
+import os
 
 if __name__ == "__main__":
     argparser.add_argument('--videoId')
@@ -7,7 +8,7 @@ if __name__ == "__main__":
     if args.videoId == None:
         print("required argument --videoId <videoId>")
     else:
-        youtube = Youtube(get_authenticated_service(args))
+        youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
         videoInfo = youtube.get_video(args.videoId )
         channelId = youtube.get_channel_id(args.videoId)
         channelTitle = youtube.get_channel_title(channelId )
