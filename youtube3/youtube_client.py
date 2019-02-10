@@ -1,6 +1,6 @@
 
 from googleapiclient import sample_tools
-
+import traceback
 
 class YoutubeClient:
     def __init__(self, client_json_file):
@@ -162,6 +162,7 @@ class YoutubeClient:
             else:
                 return False
         except:
+            traceback.print_exc()
             return False
 
 
