@@ -31,11 +31,12 @@ class YoutubeClient:
             channel_snippet = self.channel_snippet_map[channel_id]
         else:
             channel = self.get_channel(channel_id)
-            if channel and 'items' in channel and len(channel['items'] > 0 ) and 'snippet' in  channel['items'][0]:
+            if channel and 'items' in channel and len(channel['items']) > 0  and 'snippet' in  channel['items'][0]:
                 channel_snippet = channel['items'][0]['snippet']
                 self.channel_snippet_map[channel_id] = channel_snippet
         if not channel_snippet:
             raise ChannelNotFoundException('{} does not exist'.format(channel_id))
+        return channel_snippet
 
 
     def get_channel(self, channel_id):
@@ -45,7 +46,7 @@ class YoutubeClient:
       ).execute()
 
 
-    def get_channel_title(self, channel_id):
+    def get_channel_name(self, channel_id):
         channel_snippet = self.get_channel_snippet(channel_id)
         channel_title = channel_snippet['title']
         return channel_title
@@ -64,9 +65,13 @@ class YoutubeClient:
         ).execute()
 
     def get_channel_id(self, videoId):
-        channel_snippet = self.get_channel_snippet(channel_id)
-        channel_id = channel_snippet['channel_id']
-        return channel_id
+        video_snippet = self.get_video(videoId)
+        if video_snippet and 'items' in video_snippet and len(video_snippet['items']) > 0 and 'snippet' in video_snippet['items'][0]:
+            channel_id = video_snippet['items'][0]['snippet']['channelId']
+            return channel_id
+        else:
+            raise ChannelNotFoundException('{} has no channel'.format(videoId))
+
 
     def get_related_videos(self, videoId,nextPageToken=None):
         return self.youtube.search().list(
