@@ -1,11 +1,13 @@
 
 from googleapiclient import sample_tools
 import traceback
+from .exceptions import ChannelNotFoundException
 
 class YoutubeClient:
     def __init__(self, client_json_file):
         service, flags = self.login(client_json_file)
         self.youtube = service
+        self.channel_snippet_map = {}
 
     def login(self, client_json_file):
         service, flags = sample_tools.init(
@@ -15,13 +17,25 @@ class YoutubeClient:
 
 
     def list_channels(self, id):
-        return self.youtube.channels().list(part="contentDetails",id=id).execute()
+        return self.youtube.channels().list(part="contentDetails", id=id).execute()
 
     def like_video(self, video_id):
         self.youtube.videos().rate(
         id=video_id,
         rating="like"
       ).execute()
+
+    def get_channel_snippet(self, channel_id):
+        channel_snippet = None
+        if channel_id in self.channel_snippet_map:
+            channel_snippet = self.channel_snippet_map[channel_id]
+        else:
+            channel = self.get_channel(channel_id)
+            if channel and 'items' in channel and len(channel['items'] > 0 ) and 'snippet' in  channel['items'][0]:
+                channel_snippet = channel['items'][0]['snippet']
+                self.channel_snippet_map[channel_id] = channel_snippet
+        if not channel_snippet:
+            raise ChannelNotFoundException('{} does not exist'.format(channel_id))
 
 
     def get_channel(self, channel_id):
@@ -32,10 +46,9 @@ class YoutubeClient:
 
 
     def get_channel_title(self, channel_id):
-        result = self.get_channel(channel_id)
-        if result:
-            channel_title = result['items'][0]['snippet']['title']
-            return channel_title
+        channel_snippet = self.get_channel_snippet(channel_id)
+        channel_title = channel_snippet['title']
+        return channel_title
 
 
     def get_video(self, video_id):
@@ -51,9 +64,9 @@ class YoutubeClient:
         ).execute()
 
     def get_channel_id(self, videoId):
-        result = self.get_video(videoId)
-        channelId = result['items'][0]['snippet']['channelId']
-        return channelId
+        channel_snippet = self.get_channel_snippet(channel_id)
+        channel_id = channel_snippet['channel_id']
+        return channel_id
 
     def get_related_videos(self, videoId,nextPageToken=None):
         return self.youtube.search().list(

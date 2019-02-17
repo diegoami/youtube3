@@ -1,0 +1,2 @@
+class ChannelNotFoundException(BaseException):
+    pass
