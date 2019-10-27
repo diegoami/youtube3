@@ -4,7 +4,7 @@ import os
 from oauth2client.tools import argparser
 
 if __name__ == "__main__":
-    argparser.add_argument('--workDir')
+    argparser.add_argument('--workDir', default='test')
     argparser.add_argument('--maxCount')
     argparser.add_argument('--inputFile')
     argparser.add_argument('--start')
@@ -20,10 +20,15 @@ if __name__ == "__main__":
 
     maxCount = args.maxCount or 5
 
-    with open(args.workDir+'/'+inputFile,'r',encoding="utf-8") as f:
-        liked = json.load(f)
 
-    if os.path.isfile(args.workDir + '/'+recommendedFile ):
+    if os.path.isfile(args.workDir+'/'+inputFile):
+        with open(args.workDir+'/'+inputFile,'r',encoding="utf-8") as f:
+            liked = json.load(f)
+    else:
+        liked = {}
+        print("Execut save_liked_videos first")
+
+    if os.path.isfile(args.workDir + '/'+recommendedFile):
         with open(args.workDir + '/'+recommendedFile , 'r', encoding="utf-8") as f:
             recommended = dict(json.load(f))
 

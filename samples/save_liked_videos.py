@@ -8,7 +8,7 @@ def update_liked_files(youtube, max_count, work_dir):
     print(likedchannel)
     count = 0
     liked = {}
-    for videos in youtube.iterate_videos_in_channel(likedchannel, max_count):
+    for videos in youtube.iterate_videos_in_playlist(likedchannel, max_count):
         for item in videos['items']:
             print(item['contentDetails']['videoId'], item['snippet']['title'])
             liked[item['contentDetails']['videoId']] = item['snippet']['title']
@@ -18,9 +18,13 @@ def update_liked_files(youtube, max_count, work_dir):
 
 
 if __name__ == "__main__":
-    argparser.add_argument('--workDir')
+    argparser.add_argument('--workDir', default="test")
     argparser.add_argument('--maxCount')
     args = argparser.parse_args()
     youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
+    if not os.path.isdir(args.workDir):
+        os.path.mkdir(args.workDir)
+
+    print("Saving to directory: {}".format(args.workDir))
 
     update_liked_files(youtube=youtube, max_count=args.maxCount, work_dir=args.workDir)

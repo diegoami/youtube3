@@ -15,7 +15,6 @@ class YoutubeClient:
             scope='https://www.googleapis.com/auth/youtube')
         return service, flags
 
-
     def list_channels(self, id):
         return self.youtube.channels().list(part="contentDetails", id=id).execute()
 
@@ -38,26 +37,22 @@ class YoutubeClient:
             raise ChannelNotFoundException('{} does not exist'.format(channel_id))
         return channel_snippet
 
-
     def get_channel(self, channel_id):
       return self.youtube.channels().list(
         id=channel_id,
         part='snippet'
       ).execute()
 
-
     def get_channel_name(self, channel_id):
         channel_snippet = self.get_channel_snippet(channel_id)
         channel_title = channel_snippet['title']
         return channel_title
-
 
     def get_video(self, video_id):
       return self.youtube.videos().list(
         id=video_id,
         part='snippet'
       ).execute()
-
 
     def get_recommended(self):
         return self.youtube.activities().list(
@@ -71,7 +66,6 @@ class YoutubeClient:
             return channel_id
         else:
             raise ChannelNotFoundException('{} has no channel'.format(videoId))
-
 
     def get_related_videos(self, videoId,nextPageToken=None):
         return self.youtube.search().list(
@@ -92,9 +86,7 @@ class YoutubeClient:
             part='contentDetails', mine="true"
         ).execute()
 
-
     def iterate_subscriptions_in_channel(self):
-
         items, nextPageToken = self.get_subscriptions_channel_ids()
         yield from items
         while nextPageToken:
@@ -110,20 +102,38 @@ class YoutubeClient:
         except:
             return None
 
-    def videos_in_channels(self, channelId, nextPageToken=None):
+    def playlist_snippet(self, playlistId):
+        playlist_result = self.youtube.playlists().list(
+            part='snippet', id=playlistId).execute()
+        playlist_items = playlist_result["items"]
+        if playlist_items:
+            playlist_snippet = playlist_items[0]["snippet"]
+        else:
+            playlist_snippet = None
+        return playlist_snippet
+
+    def playlist_name(self, playlistId):
+        playlist_snippet = self.playlist_snippet(playlistId=playlistId)
+        if playlist_snippet:
+            return playlist_snippet["localized"]["title"]
+        else:
+            return None
+
+    def videos_in_playlist(self, playlistId, nextPageToken=None):
 
         playlistItems = self.youtube.playlistItems().list(
-            part='snippet,contentDetails', playlistId=channelId, pageToken=nextPageToken
+            part='snippet,contentDetails', playlistId=playlistId, pageToken=nextPageToken
         ).execute()
         return playlistItems
 
-    def iterate_videos_in_channel(self, channelId,maxCount=None):
+
+    def iterate_videos_in_playlist(self, playlistId, maxCount=None):
         count = 0
-        videos = self.videos_in_channels(channelId)
+        videos = self.videos_in_playlist(playlistId)
         yield videos
         count += 1
         while 'nextPageToken' in videos:
-            videos = self.videos_in_channels(channelId,videos['nextPageToken'])
+            videos = self.videos_in_playlist(playlistId, videos['nextPageToken'])
             yield videos
             count += 1
             if maxCount and count > int(maxCount):
@@ -135,13 +145,11 @@ class YoutubeClient:
         yield videos
         count += 1
         while 'nextPageToken' in videos:
-            videos = self.get_related_videos(videoId,videos ['nextPageToken'])
+            videos = self.get_related_videos(videoId, videos ['nextPageToken'])
             yield videos
             count  += 1
             if maxCount and count > int(maxCount):
                 break
-
-
 
     def subscribe_channel(self, channelId):
         self.youtube.subscriptions().insert(
