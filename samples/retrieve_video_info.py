@@ -12,6 +12,7 @@ if __name__ == "__main__":
         videoInfo = youtube.get_video(args.videoId )
         channelId = youtube.get_channel_id(args.videoId)
 
+        print(videoInfo['items'][0]['snippet'])
         relatedVideos = youtube.get_related_videos(args.videoId )
         print(videoInfo)
         print(channelId)
