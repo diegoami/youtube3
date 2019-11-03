@@ -10,12 +10,12 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='youtube3',
-    version='1.0.0',
+    version='1.1.0',
     packages=['youtube3'],
     include_package_data=True,
     keywords='youtube wrapper oauth2 v3',
     license='BSD License',
-    install_requires=['google-api-python-client', 'oauth2client', 'youtube-dl'],
+    install_requires=['google-api-python-client', 'oauth2client'],
     description='Python Youtube v3 API Wrapper',
     long_description=README,
     url='https://github.com/diegoami/youtube3/',
@@ -27,7 +27,7 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3',
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
         'Topic :: Internet :: WWW/HTTP :: HTTP Servers',

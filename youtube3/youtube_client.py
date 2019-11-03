@@ -38,10 +38,10 @@ class YoutubeClient:
         return channel_snippet
 
     def get_channel(self, channel_id):
-      return self.youtube.channels().list(
-        id=channel_id,
-        part='snippet'
-      ).execute()
+        return self.youtube.channels().list(
+            id=channel_id,
+            part='snippet'
+        ).execute()
 
     def get_channel_name(self, channel_id):
         channel_snippet = self.get_channel_snippet(channel_id)
@@ -53,6 +53,10 @@ class YoutubeClient:
         id=video_id,
         part='snippet'
       ).execute()
+
+    def get_video_snippet(self, video_id):
+        video_info = self.get_video(video_id)
+        return video_info['items'][0]['snippet']
 
     def get_recommended(self):
         return self.youtube.activities().list(
