@@ -1,12 +1,10 @@
-client_secrets_yt.json
-client_secrets.json
-example.py-oauth2.json
-.idea/*
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+youtube.dat
+.eggs
+.idea
 *.pyc
-youtube3/__pycache__/*
-*.py-oauth2.json
-build/*
-dist/*
-youtube3.egg-info/*
-
-

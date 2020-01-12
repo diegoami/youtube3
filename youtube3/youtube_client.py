@@ -4,10 +4,12 @@ import traceback
 from .exceptions import ChannelNotFoundException
 
 class YoutubeClient:
-    def __init__(self, client_json_file):
+    def __init__(self, client_json_file, debug=False):
         service, flags = self.login(client_json_file)
         self.youtube = service
         self.channel_snippet_map = {}
+
+
 
     def login(self, client_json_file):
         service, flags = sample_tools.init(
@@ -142,6 +144,40 @@ class YoutubeClient:
             count += 1
             if maxCount and count > int(maxCount):
                 break
+
+    def delete_from_playlist(self, playlist_source, start, end):
+        counter = 0
+        ids_to_delete = []
+        for video_items in self.iterate_videos_in_playlist(playlist_source):
+            for item in video_items["items"]:
+                if (start <= counter < end):
+                    id = item["id"]
+                    videoId = item["contentDetails"]["videoId"]
+                    ids_to_delete.append(id)
+                    counter += 1
+        for id in ids_to_delete:
+            print(f"Trying to remove video {videoId} from {playlist_source}")
+            self.youtube.playlistItems().delete(id=id).execute()
+            print(f"Successfully removed video {videoId} from {playlist_source}")
+
+    def copy_to_playlist(self, playlist_source, playlist_target, start, end):
+        counter = 0
+        for video_items in self.iterate_videos_in_playlist(playlist_source):
+            for item in video_items["items"]:
+                if (start <= counter < end):
+                    videoId = item["contentDetails"]["videoId"]
+                    insert_snippet = {
+                        "snippet": {
+                            "playlistId" : playlist_target,
+                            "resourceId" : {
+                                "kind" : "youtube#video",
+                                "videoId" : videoId
+                            }
+                        }
+                    }
+                    self.youtube.playlistItems().insert(part="snippet", body=insert_snippet).execute()
+                    print(f"Copied video {videoId} from {playlist_source} to {playlist_target}")
+                    counter += 1
 
     def iterate_related_videos(self, videoId,maxCount=None):
         count = 0
