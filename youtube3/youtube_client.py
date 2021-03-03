@@ -230,5 +230,27 @@ class YoutubeClient:
         except:
             traceback.print_exc()
             return False
+    
+    def Get_all_video_in_channel(self, id_channel):
+        base_video_url = 'https://www.youtube.com/watch?v='
+        video_links = list()
+        page_token = None
+        while True:
+            videos = self.youtube.search().list(
+                channelId=id_channel,
+                part='snippet, id',
+                order='date',
+                maxResults=25,
+                pageToken=page_token
+            ).execute()
+
+            for video in videos['items']:
+                if video['id']['kind'] == "youtube#video":
+                    video_links.append(base_video_url + video['id']['videoId'])
+            try:
+                page_token = videos['nextPageToken']
+            except:
+                break
+        return video_links
 
 
