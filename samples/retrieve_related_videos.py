@@ -43,7 +43,7 @@ if __name__ == "__main__":
         for relatedvideos in youtube.iterate_related_videos(videoId,maxCount):
             for item in relatedvideos['items']:
                 rvideoId, rtitle = item['id']['videoId'],item['snippet']['title']
-                if rvideoId not in liked and rvideoId not in recommended:
+                if rvideoId not in liked:
                     if rvideoId not in recommended:
                         recommended[rvideoId] = {"title" : rtitle,"count" : 1}
                     else:
