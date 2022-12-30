@@ -56,17 +56,11 @@ class YoutubeClient:
         part='snippet'
       ).execute()
 
-    def update_snippet(self, video_id, video_snippet):
-        update_snippet = {
-            "id": video_id,
-            "snippet": video_snippet
-        }
-        return self.youtube.videos().update(
-            part = 'snippet',
-            body = update_snippet
-
+    def upload_thumbnail(self, videoId, thumbnailUrl):
+        return self.youtube.thumbnails().set(
+            videoId = videoId,
+            media_body = thumbnailUrl
         ).execute()
-
 
     def get_video_snippet(self, video_id):
         video_info = self.get_video(video_id)
