@@ -5,6 +5,8 @@ import os
 if __name__ == "__main__":
     argparser.add_argument('--playlistId')
     args = argparser.parse_args()
+    if args.playlistId == None:
+        print("required argument --playlistId <playlistId>")
     youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
     args = argparser.parse_args()
     playlist_id = args.playlistId
