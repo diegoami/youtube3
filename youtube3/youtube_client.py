@@ -26,6 +26,18 @@ class YoutubeClient:
         rating="like"
       ).execute()
 
+    def update_snippet(self, video_id, video_snippet):
+        update_snippet = {
+            "id": video_id,
+            "snippet": video_snippet
+        }
+        return self.youtube.videos().update(
+            part='snippet',
+            body=update_snippet
+
+        ).execute()
+
+
     def get_channel_snippet(self, channel_id):
         channel_snippet = None
         if channel_id in self.channel_snippet_map:

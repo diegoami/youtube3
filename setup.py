@@ -10,7 +10,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='youtube3',
-    version='1.2.2',
+    version='1.2.3',
     packages=['youtube3'],
     include_package_data=True,
     keywords='youtube wrapper oauth2 v3',
