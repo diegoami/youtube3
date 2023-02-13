@@ -151,6 +151,23 @@ class YoutubeClient:
         return playlistItems
 
 
+
+
+    def update_status(self, video_id, privacy_status):
+
+        if privacy_status not in ["private", "unlisted", "public"]:
+            raise ValueError("privacy_status must be private, unlisted or public")
+
+        self.youtube.videos().update(
+            part="status",
+            body={
+                "id": video_id,
+                "status": {
+                    "privacyStatus": privacy_status
+                }
+            }
+        ).execute()
+
     def iterate_videos_in_playlist(self, playlistId, maxCount=None):
         count = 0
         videos = self.videos_in_playlist(playlistId)
