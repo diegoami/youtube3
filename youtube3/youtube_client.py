@@ -68,6 +68,14 @@ class YoutubeClient:
         part='snippet'
       ).execute()
 
+    def get_video_content_details(self, video_id):
+      video_content_details = self.youtube.videos().list(
+        id=video_id,
+        part='contentDetails'
+      ).execute()
+      return video_content_details['items'][0]['contentDetails']
+
+
     def upload_thumbnail(self, videoId, thumbnailUrl):
         return self.youtube.thumbnails().set(
             videoId = videoId,
