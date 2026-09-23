@@ -8,7 +8,7 @@
 
 | id | request | status | notes |
 |---|---|---|---|
-| F-1 | "Would like to revive this repo, tell me if we can make it usable" | landed | Proposal #5, PR #6. The gates first: `pyproject.toml` (Python 3.10+), pytest with `googleapiclient.http.HttpMock`, ruff, a GitHub Actions workflow; `.gitignore` for `client_secrets*.json`, `token.json`, `*.egg-info/`. |
+| F-1 | "Would like to revive this repo, tell me if we can make it usable" | landed | Proposal #5, PR #6. The gates first: `pyproject.toml` (Python 3.10+, raised to 3.11+ in #8), pytest with `googleapiclient.http.HttpMock`, ruff, a GitHub Actions workflow; `.gitignore` for `client_secrets*.json`, `token.json`, `*.egg-info/`. |
 | F-2 | "Would like to revive this repo, tell me if we can make it usable" | landed | Proposal #9, PR #10. Login through `google-auth-oauthlib` with a refreshed, stored token instead of `oauth2client`/`sample_tools`; remove the related-videos and recommended calls; fix the playlist range counter in `copy_to_playlist`/`delete_from_playlist` (flips F-1's strict `xfail` tests), the logged id, `maxCount` yielding one page more than asked (F-1's `test_iterate_videos_in_playlist_max_count_current_behaviour` pins it and changes with the fix), `maxResults=50`, `ChannelNotFoundException(Exception)`. Depends on F-1. |
 | F-3 | "the liked" — "The convenience operations is what I missed" | requested | Export the `LL` playlist to JSON, incrementally; bulk unlike through `videos.rate(rating="none")` by channel, date or id, with a dry run. Depends on F-2. |
 | F-4 | "make a landing page with liked" | requested | A static page built from F-3's export: thumbnails, titles, channels, dates, search. Where it is hosted is an open question. Depends on F-3. |

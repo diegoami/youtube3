@@ -323,3 +323,41 @@ def test_a_client_needs_secrets_or_a_service():
 
 def test_the_exception_is_an_ordinary_exception():
     assert issubclass(ChannelNotFoundException, Exception)
+
+
+def test_copy_to_playlist_ending_on_a_page_boundary_fetches_no_further_page(fake):
+    # Found by the v2.0.0 review (#16): end on the last item of a page.
+    yt = fake(playlist_page(["a", "b"], next_token="t1"), {"id": "new1"}, {"id": "new2"})
+
+    yt.client.copy_to_playlist("PLsrc", "PLdst", 0, 2)
+
+    assert [r.method for r in yt.requests] == ["GET", "POST", "POST"]
+
+
+def test_delete_from_playlist_ending_on_a_page_boundary_fetches_no_further_page(fake):
+    yt = fake(playlist_page(["a", "b"], next_token="t1"), (204, None), (204, None))
+
+    yt.client.delete_from_playlist("PLsrc", 0, 2)
+
+    assert [r.method for r in yt.requests] == ["GET", "DELETE", "DELETE"]
+
+
+@pytest.mark.parametrize("max_count", [None, 0, "0"])
+def test_iterate_videos_in_playlist_without_a_limit_reads_every_page(fake, max_count):
+    yt = fake(playlist_page(["a"], next_token="t1"), playlist_page(["b"]))
+
+    pages = list(yt.client.iterate_videos_in_playlist("PL1", maxCount=max_count))
+
+    assert len(pages) == 2
+
+
+def test_verify_video_is_false_outside_the_allowed_countries(fake):
+    yt = fake({"items": [{"contentDetails": {"regionRestriction": {"allowed": ["US", "CA"]}}}]})
+
+    assert yt.client.verify_video("vid1", country="DE") is False
+
+
+def test_verify_video_is_true_inside_the_allowed_countries(fake):
+    yt = fake({"items": [{"contentDetails": {"regionRestriction": {"allowed": ["DE", "AT"]}}}]})
+
+    assert yt.client.verify_video("vid1", country="DE") is True

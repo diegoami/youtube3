@@ -73,11 +73,33 @@ The methods of `YoutubeClient`:
 -   `delete_from_playlist`: Remove the videos at positions `start` to `end - 1` from a playlist.
 -   `copy_to_playlist`: Copy the videos at positions `start` to `end - 1` of a playlist to another.
 -   `subscribe_channel`: Subscribe to a channel using its ID.
--   `verify_video`: Say whether a video exists and is not blocked in a country (default `DE`).
+-   `verify_video`: Say whether a video exists and can be watched in a country (default `DE`): not in its blocked list, and in its allowed list when it has one.
 
-Version 2.0.0 removed `get_related_videos`, `iterate_related_videos` and
-`get_recommended`: YouTube no longer serves related videos or
-recommendations through the API.
+### Upgrading from 1.x
+
+Version 2.0.0 breaks the 1.x API:
+
+-   `get_related_videos`, `iterate_related_videos` and `get_recommended` are
+    removed: YouTube no longer serves related videos or recommendations
+    through the API.
+-   `login` returns the API service alone, not a `(service, flags)` tuple:
+    replace `service, flags = youtube.login(path)` with
+    `service = youtube.login(path)`.
+-   `YoutubeClient(client_json_file=None, debug=False, *, token_file=None,
+    service=None)`: the client secrets file is read from the path given
+    (1.x read `client_secrets.json` from that path's directory, whatever the
+    file name); the login is saved in `token.json` next to it, not in
+    `youtube.dat`, so the first 2.0 run logs in again; `service=` passes an
+    already-built client instead of logging in.
+-   `oauth2client` is no longer a dependency.
+-   `ChannelNotFoundException` is an `Exception`, no longer a
+    `BaseException`.
+-   `verify_video` returns `False` only for an API error (`HttpError`);
+    other exceptions now propagate instead of being printed and swallowed.
+-   What the library changes is logged through the `youtube3` logger instead
+    of printed.
+-   `copy_to_playlist` and `delete_from_playlist` act on positions `start`
+    to `end - 1` for any `start`; in 1.x a `start` above 0 did nothing.
 
 ## DEVELOPMENT
 

@@ -86,7 +86,7 @@ KNOWN OWNER DECISIONS (not defects):
 - The owner decisions and the "decided, and not to be re-opened" list in
   CLAUDE.md's project slot: watch history is not in the API, python-youtube
   was not adopted, uploads stay in YouTube Studio.
-- Do not run anything against the YouTube API. The live gate (G3) writes to
+- Do not run anything against the YouTube API. The live gate (G5) writes to
   the owner's real account and needs the owner's OAuth credentials, which you
   do not have and must not look for.
 - <this milestone's own, or "none">
