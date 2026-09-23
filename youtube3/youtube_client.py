@@ -147,7 +147,10 @@ class YoutubeClient:
 
     def iterate_videos_in_playlist(self, playlistId, maxCount=None):
         """Yield the playlist one page at a time; at most maxCount pages when given."""
-        max_pages = int(maxCount) if maxCount else None
+        # None, 0 and "0" all mean no limit, as 0 did before 2.0.0.
+        max_pages = int(maxCount) if maxCount not in (None, "") else None
+        if max_pages is not None and max_pages <= 0:
+            max_pages = None
         videos = self.videos_in_playlist(playlistId)
         yield videos
         pages = 1
@@ -166,6 +169,9 @@ class YoutubeClient:
                 if position >= start:
                     yield item
                 position += 1
+            # Stop before the next page is fetched when the range ends here.
+            if position >= end:
+                return
 
     def delete_from_playlist(self, playlist_source, start, end):
         # Collect first: deleting while paging would shift the positions.
@@ -195,7 +201,7 @@ class YoutubeClient:
         ).execute()
 
     def verify_video(self, video_id, country="DE"):
-        """True when the video exists and is not blocked in the country."""
+        """True when the video exists and can be watched in the country."""
         try:
             videos = self.youtube.videos().list(id=video_id, part="contentDetails").execute()
         except HttpError:
@@ -204,5 +210,7 @@ class YoutubeClient:
         video_items = videos.get("items")
         if not video_items or not video_items[0] or "contentDetails" not in video_items[0]:
             return False
-        blocked = video_items[0]["contentDetails"].get("regionRestriction", {}).get("blocked", [])
-        return country not in blocked
+        restriction = video_items[0]["contentDetails"].get("regionRestriction", {})
+        if "allowed" in restriction and country not in restriction["allowed"]:
+            return False
+        return country not in restriction.get("blocked", [])
