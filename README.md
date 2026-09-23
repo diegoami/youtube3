@@ -41,11 +41,13 @@ The `samples` directory has one script per operation, for example:
 
 ```
 python samples/show_files_in_playlist.py --playlistId <id>
-python samples/move_videos_playlist.py --playlistSource <id> --playlistTarget <id> --start 0 --end 10
+python samples/move_videos_playlist.py --playlistSource <id> --playlistTarget <id> --start 0 --end 10 --apply
 ```
 
 Each takes `--client-secrets` (default `samples/client_secrets.json`) and
-`--token-file`.
+`--token-file`. The samples that change many things at once (moving,
+removing, publishing, unliking) only show what they would do unless given
+`--apply`.
 
 ## LIKES
 
@@ -103,8 +105,8 @@ The methods of `YoutubeClient`:
 -   `playlist_name`: Retrieve the title of a playlist using its ID.
 -   `videos_in_playlist`: Retrieve one page (up to 50) of the videos in a playlist.
 -   `iterate_videos_in_playlist`: Iterate over a playlist page by page, at most `maxCount` pages when given.
--   `delete_from_playlist`: Remove the videos at positions `start` to `end - 1` from a playlist.
--   `copy_to_playlist`: Copy the videos at positions `start` to `end - 1` of a playlist to another.
+-   `delete_from_playlist`: Remove the videos at positions `start` to `end - 1` from a playlist; `apply=False` only lists them. Returns the video ids.
+-   `copy_to_playlist`: Copy the videos at positions `start` to `end - 1` of a playlist to another; `apply=False` only lists them. Returns the video ids.
 -   `subscribe_channel`: Subscribe to a channel using its ID.
 -   `verify_video`: Say whether a video exists and can be watched in a country (default `DE`): not in its blocked list, and in its allowed list when it has one.
 

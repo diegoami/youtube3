@@ -181,18 +181,31 @@ class YoutubeClient:
             if position >= end:
                 return
 
-    def delete_from_playlist(self, playlist_source, start, end):
+    def delete_from_playlist(self, playlist_source, start, end, *, apply=True):
+        """Remove positions start..end-1; with apply=False, only list them.
+
+        Returns the video ids removed, or that would be.
+        """
         # Collect first: deleting while paging would shift the positions.
         items = list(self._items_in_range(playlist_source, start, end))
-        for item in items:
+        for item in items if apply else []:
             video_id = item["contentDetails"]["videoId"]
             logger.info("Removing video %s from %s", video_id, playlist_source)
             self.youtube.playlistItems().delete(id=item["id"]).execute()
             logger.info("Removed video %s from %s", video_id, playlist_source)
+        return [item["contentDetails"]["videoId"] for item in items]
 
-    def copy_to_playlist(self, playlist_source, playlist_target, start, end):
+    def copy_to_playlist(self, playlist_source, playlist_target, start, end, *, apply=True):
+        """Copy positions start..end-1 to another playlist; with apply=False, only list them.
+
+        Returns the video ids copied, or that would be.
+        """
+        video_ids = []
         for item in self._items_in_range(playlist_source, start, end):
             video_id = item["contentDetails"]["videoId"]
+            video_ids.append(video_id)
+            if not apply:
+                continue
             insert_snippet = {
                 "snippet": {
                     "playlistId": playlist_target,
@@ -201,6 +214,7 @@ class YoutubeClient:
             }
             self.youtube.playlistItems().insert(part="snippet", body=insert_snippet).execute()
             logger.info("Copied video %s from %s to %s", video_id, playlist_source, playlist_target)
+        return video_ids
 
     def subscribe_channel(self, channelId):
         self.youtube.subscriptions().insert(

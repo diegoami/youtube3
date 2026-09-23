@@ -361,3 +361,25 @@ def test_verify_video_is_true_inside_the_allowed_countries(fake):
     yt = fake({"items": [{"contentDetails": {"regionRestriction": {"allowed": ["DE", "AT"]}}}]})
 
     assert yt.client.verify_video("vid1", country="DE") is True
+
+
+def test_copy_to_playlist_without_apply_only_lists_the_range(fake):
+    # Bulk writes get a dry run (#25).
+    yt = fake(playlist_page(["a", "b", "c"]))
+
+    assert yt.client.copy_to_playlist("PLsrc", "PLdst", 1, 3, apply=False) == ["b", "c"]
+    assert [r.method for r in yt.requests] == ["GET"]
+
+
+def test_delete_from_playlist_without_apply_only_lists_the_range(fake):
+    yt = fake(playlist_page(["a", "b", "c"]))
+
+    assert yt.client.delete_from_playlist("PLsrc", 0, 2, apply=False) == ["a", "b"]
+    assert [r.method for r in yt.requests] == ["GET"]
+
+
+def test_copy_and_delete_return_what_they_did(fake):
+    yt = fake(playlist_page(["a"]), {"id": "new1"}, playlist_page(["a"]), (204, None))
+
+    assert yt.client.copy_to_playlist("PLsrc", "PLdst", 0, 1) == ["a"]
+    assert yt.client.delete_from_playlist("PLsrc", 0, 1) == ["a"]
