@@ -190,7 +190,7 @@ def windows(monkeypatch):
     return calls
 
 
-def test_on_windows_the_token_file_is_cut_off_from_its_folder_before_the_token_is_written(
+def test_on_windows_the_new_token_file_is_cut_off_from_its_folder_before_the_token_is_written(
     windows, tmp_path
 ):
     token = tmp_path / "token.json"
@@ -198,13 +198,16 @@ def test_on_windows_the_token_file_is_cut_off_from_its_folder_before_the_token_i
 
     auth.save_credentials(FakeCredentials(), token)
 
-    assert [call["args"] for call in windows] == [
-        ["icacls", str(token), "/reset"],
-        ["icacls", str(token), "/inheritance:r", "/grant:r", "PC\\diego:F"],
+    [target] = {call["args"][1] for call in windows}
+    assert target != str(token) and os.path.dirname(target) == str(tmp_path)
+    assert [call["args"][2:] for call in windows] == [
+        ["/reset"],
+        ["/inheritance:r", "/grant:r", "PC\\diego:F"],
     ]
     assert all(call["kwargs"]["check"] is True for call in windows)
     assert [call["content"] for call in windows] == ["", ""]
     assert token.read_text() == TOKEN_JSON
+    assert [p.name for p in tmp_path.iterdir()] == ["token.json"]
 
 
 def test_on_windows_a_failed_icacls_leaves_no_token_on_disk(monkeypatch, tmp_path):
@@ -218,7 +221,7 @@ def test_on_windows_a_failed_icacls_leaves_no_token_on_disk(monkeypatch, tmp_pat
     with pytest.raises(subprocess.CalledProcessError):
         auth.save_credentials(FakeCredentials(), token)
 
-    assert "SECRET" not in token.read_text()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_the_windows_user_without_a_domain_is_the_user_name(monkeypatch):
@@ -226,3 +229,19 @@ def test_the_windows_user_without_a_domain_is_the_user_name(monkeypatch):
     monkeypatch.setenv("USERNAME", "diego")
 
     assert auth.windows_user() == "diego"
+
+
+def test_a_failed_restriction_keeps_the_previous_token(monkeypatch, tmp_path):
+    # Found by the v2.1.0 review (#26): the old token was truncated first.
+    token = tmp_path / "token.json"
+    token.write_text(TOKEN_JSON)
+
+    def fail(path):
+        raise PermissionError("icacls failed")
+
+    monkeypatch.setattr(auth, "restrict_to_owner", fail)
+    with pytest.raises(PermissionError):
+        auth.save_credentials(FakeCredentials(), token)
+
+    assert token.read_text() == TOKEN_JSON
+    assert [p.name for p in tmp_path.iterdir()] == ["token.json"]

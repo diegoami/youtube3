@@ -2,6 +2,7 @@ import getpass
 import logging
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from google.auth.exceptions import RefreshError
@@ -49,19 +50,28 @@ def load_credentials(client_secrets_file, token_file):
 
 
 def save_credentials(credentials, token_path):
+    """Replace the token file; any failure leaves the previous token as it was.
+
+    The new token is written to a file next to it that is restricted to the
+    owner while still empty, then renamed over the old one; the rename keeps
+    the new file's permissions.
+    """
     token_path.parent.mkdir(parents=True, exist_ok=True)
-    # Empty the file and restrict it before the token is written into it.
-    descriptor = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    descriptor, temporary = tempfile.mkstemp(dir=token_path.parent, prefix=f".{token_path.name}.")
     os.close(descriptor)
-    restrict_to_owner(token_path)
-    with open(token_path, "w", encoding="utf-8") as token:
-        token.write(credentials.to_json())
+    try:
+        restrict_to_owner(temporary)
+        with open(temporary, "w", encoding="utf-8") as token:
+            token.write(credentials.to_json())
+        os.replace(temporary, token_path)
+    except BaseException:
+        os.unlink(temporary)
+        raise
 
 
 def restrict_to_owner(path):
     """Make path readable and writable by the current user only."""
     if not WINDOWS:
-        # O_CREAT's mode does not apply to a file that already existed.
         os.chmod(path, 0o600)
         return
     # On Windows chmod only sets the read-only flag, and a new file gets its

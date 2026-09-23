@@ -105,7 +105,13 @@ def write_undo_log(folder, records, rating, now=None):
     """Save what a run changed, so it can be replayed the other way."""
     now = now or datetime.now(timezone.utc)
     prefix = "unliked" if rating == "none" else "reliked"
-    path = Path(folder) / f"{prefix}-{now.strftime('%Y%m%d-%H%M%S')}.json"
+    stem = f"{prefix}-{now.strftime('%Y%m%d-%H%M%S')}"
+    path = Path(folder) / f"{stem}.json"
+    # Two runs in the same second must not replace each other's log.
+    counter = 2
+    while path.exists():
+        path = Path(folder) / f"{stem}-{counter}.json"
+        counter += 1
     write_json_atomically(
         path, {"rated_at": now.isoformat(timespec="seconds"), "rating": rating, "videos": records}
     )
@@ -127,7 +133,9 @@ def select(videos, channel=None, liked_before=None, liked_after=None, ids=None, 
     """The videos matching every criterion given; no criterion matches all.
 
     channel: a channel id, or a channel title in any case. liked_before: liked
-    before that day began (UTC). liked_after: liked on that day or later.
+    before that day began (UTC). liked_after: liked on that day or later. A
+    day is a date or "YYYY-MM-DD"; a datetime is taken as that exact instant
+    (UTC when it has no time zone).
     ids: video ids. unavailable: True for deleted or private videos only,
     False for available ones only.
     """
