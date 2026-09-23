@@ -63,16 +63,17 @@ def login(monkeypatch, tmp_path):
     return run
 
 
-def owner_only(path):
-    """True when only the current user can open path, by the platform's own rules."""
+def assert_owner_only(path):
+    """Only the current user can open path, by the platform's own rules."""
     if os.name != "nt":
-        return stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert oct(stat.S_IMODE(path.stat().st_mode)) == oct(0o600)
+        return
     listing = subprocess.run(
         ["icacls", str(path)], capture_output=True, text=True, errors="replace", check=True
     ).stdout
     # "<path> DOMAIN\user:(F)", one entry per line, then a blank line and a summary.
     entries = listing.split("\n\n")[0].replace(str(path), "", 1).split()
-    return [e.lower() for e in entries] == [f"{auth.windows_user()}:(F)".lower()]
+    assert [e.lower() for e in entries] == [f"{auth.windows_user()}:(F)".lower()], listing
 
 
 def test_a_valid_saved_token_is_used_without_a_login(login):
@@ -92,7 +93,7 @@ def test_an_expired_token_is_refreshed_and_saved_for_the_owner_only(login):
     assert credentials is saved and saved.refreshed
     assert FakeFlow.runs == []
     assert token.read_text() == FRESH_JSON
-    assert owner_only(token)
+    assert_owner_only(token)
 
 
 def test_without_a_token_the_browser_flow_runs_and_the_token_is_saved(login, tmp_path):
@@ -102,7 +103,7 @@ def test_without_a_token_the_browser_flow_runs_and_the_token_is_saved(login, tmp
     assert secrets_file == str(tmp_path / "my_secrets.json")
     assert kwargs == {"port": 0}
     assert token.read_text() == credentials.to_json()
-    assert owner_only(token)
+    assert_owner_only(token)
 
 
 def test_a_token_that_cannot_be_refreshed_falls_back_to_the_browser_flow(login):
@@ -129,7 +130,7 @@ def test_a_token_file_readable_by_others_is_tightened(login, tmp_path):
 
     login(FakeCredentials(valid=False, expired=True))
 
-    assert owner_only(token)
+    assert_owner_only(token)
 
 
 def test_no_token_reaches_the_logs_or_the_terminal(login, caplog, capsys):
