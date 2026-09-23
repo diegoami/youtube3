@@ -41,8 +41,9 @@ is quoted verbatim in the block and never silently reworded.
 - **Open questions:** owner decisions marked as such
 ```
 
-The block is posted as a GitHub issue labelled `proposal`: that issue is the
-proposal milestone's thread, and the implementing PR says `Closes #n`.
+The block is posted as a GitHub issue labelled `proposal`, and the
+implementing PR says `Closes #n`. The independent review comes later, at the
+milestone tag that includes the request (`CLAUDE.md`).
 
 ## Claude's job
 
