@@ -12,63 +12,68 @@ This file records the Claude-specific process and the project slot.
 - Claude does the work itself, the proposal and the implementation, on a
   branch, and opens a pull request against `master` on
   `diegoami/youtube3`.
-- Claude **does not spawn its own reviewer**. For a non-trivial change that is
-  not a milestone, Claude verifies the work itself and says how in the PR:
-  each gate it ran, its result, and what it would have caught had the code
-  been wrong (`PRINCIPLES.md`, the six gates disciplines).
+- Claude **does not spawn its own reviewer**. For every pull request, Claude
+  verifies the work itself and says how in the PR: each gate it ran, its
+  result, and what it would have caught had the code been wrong
+  (`PRINCIPLES.md`, the six gates disciplines).
 - A finding Claude disagrees with goes to the owner, not around the reviewer.
 - Merging is `merge: auto`; the conditions are under **Merging** below.
 
-### Independent review at milestones
+### Milestones and the independent review
 
 *Reviewer: if a review-handoff prompt brought you here, that prompt defines
 your job; this file is the standard you review against.*
 
-At each milestone Claude gives the owner a prompt to run in a **different
-model**, in whatever tool the owner picks (Codex, DeepSeek, OpenCode, or
-another), in a fresh session every time. Nothing here assumes one tool.
-**A milestone PR does not merge before its independent review**: it waits for
-an AGREE, or for the owner to say to merge without one. A proposal's review
-does not hold the branch; the owner's go on the proposal starts it. The
-review is recorded on the thread the milestone already has:
+A **milestone is a point in time**: an annotated tag `vX.Y.Z` on `master`.
+It is not a branch, a pull request or a proposal. The independent review
+happens **per milestone, never per PR**: proposals and pull requests get no
+review prompt, and nothing waits for a review between milestones.
 
-| Milestone | Thread | Offer the prompt |
-|---|---|---|
-| Proposal written (a `ROADMAP.md` request shaped into its block) | the `proposal` issue carrying the block | with the proposal |
-| PR that implements a proposal, gates green | the PR (it says `Closes #n` for the proposal) | when the PR is ready to merge |
-| Release staged | the `release/X.Y.Z` PR, with the built sdist and wheel checksums in its body | before the owner publishes to PyPI |
+1. **Calling one.** The owner calls a milestone, or Claude proposes one when
+   a coherent set of work has landed: a roadmap group, a breaking change,
+   anything meant for a PyPI release.
+2. **The milestone issue.** Claude opens an issue labelled `milestone`,
+   titled `Milestone vX.Y.Z`, with the candidate commit on `master` (full
+   SHA), the previous milestone tag, the pull requests merged since, the
+   gate results on the candidate (CI and G1–G4), and the owner's G5 result
+   when an API call changed.
+3. **The review.** Claude gives the owner one prompt (the `review-handoff`
+   skill) to run in a **different model**, in whatever tool the owner picks
+   (Codex, DeepSeek, OpenCode, or another), in a fresh session every time.
+   The reviewer checks out the candidate SHA, reviews
+   `git diff <previous tag>..<candidate>` and follows it into any file it
+   touches.
+4. **BLOCK.** The findings are fixed in ordinary PRs; the candidate moves to
+   the new `master` commit, and Claude gives a re-review prompt without being
+   asked. The round ceiling in `PRINCIPLES.md` applies: a third round that
+   does not end in AGREE goes to the owner.
+5. **AGREE.** Claude creates the annotated tag on **exactly the reviewed
+   SHA**, never a later commit, pushes it, and posts the completion note on
+   the milestone issue. Work merged after the candidate belongs to the next
+   milestone. G5, the owner's live check, happens before the tag whenever
+   the milestone changes an API call. Uploading to PyPI stays the owner's.
+6. The owner may tag without a review; the milestone issue records that.
 
-**Nothing else gets a review prompt by default**: not tooling or CI fixes
-without a proposal, not wording or docs changes, not small fixes inside an
-agreed proposal (the release review covers them). At most a one-line
-mention that a review is possible; the prompt only if the owner asks. A
-**re-review** of a milestone PR is due when a BLOCK was answered with fixes,
-or when commits after an AGREE go beyond the findings that review raised;
-Claude writes its prompt without being asked, because the merge waits on it.
-
-Every milestone PR body carries a `Review:` line that Claude keeps current:
-`not run`, `AGREE at <sha>`, or `BLOCK at <sha>: #n, #m`. A review of a PR
-already merged (one the owner merged without review) runs against the merge
-commit; its findings are ordinary issues for a later PR.
+The baseline is `v1.2.5` on `56e351b`, the last commit before the 2026
+revival (its `setup.py` says 1.2.5, as published on PyPI). The older tag
+`1.1.0` stays as it is.
 
 The reviewer posts to GitHub itself, and nothing is pasted back:
 
 - **one issue per reproduced finding**, labelled `review` plus a category
   label (`bug`, `robustness`, `tests`, `design`, `cleanup`,
-  `documentation`), linking back to the thread and the SHA;
-- **always one verdict comment** on the thread: AGREE, or BLOCK when any
-  finding is MUST-FIX; the SHA reviewed, the issues it opened, what it
+  `documentation`), linking back to the milestone issue and the SHA;
+- **always one verdict comment** on the milestone issue: AGREE, or BLOCK when
+  any finding is MUST-FIX; the SHA reviewed, the issues it opened, what it
   checked and found clean. A review that finds nothing still leaves a
   record.
 
-Severities: **MUST-FIX** (fixed before merging), **SHOULD**, and **OUT OF
-SCOPE** (not caused by the change). The round ceiling in `PRINCIPLES.md` applies to milestone reviews.
-
-The `review-handoff` skill (`.claude/skills/review-handoff/SKILL.md`) holds
-the prompt template. When the owner says the review is in: read it from
-GitHub, reproduce each finding before acting on it, and fix it (`Fixes #n`
-in the PR) or rebut it with evidence on the issue. Owner decisions go to the
-owner with a recommended default, not into the code.
+Severities: **MUST-FIX** (fixed before the tag), **SHOULD**, and **OUT OF
+SCOPE** (not caused by the milestone's changes). When the owner says the
+review is in: read it from GitHub, reproduce each finding before acting on
+it, and fix it (`Fixes #n` in the PR) or rebut it with evidence on the
+issue. Owner decisions go to the owner with a recommended default, not into
+the code.
 
 ### Merging
 
@@ -78,21 +83,12 @@ when all of these hold, and records in the PR which ones it checked:
 1. every gate in the gates table that the diff can affect is green **on the
    PR's head**, with the output summarised in the PR body, and CI is green
    on that head;
-2. no open MUST-FIX issue names the PR, and no BLOCK verdict on the current
-   head is unanswered;
-3. **for a milestone PR**, the independent verdict is AGREE on the current
-   head, or on an earlier head where every later commit only answers that
-   review's findings (listed in the PR) — or the owner has said to merge
-   without review, which the PR records;
-4. the owner has not asked to hold it;
-5. it is not a release: tagging `vX.Y.Z` and uploading to PyPI are the
-   owner's, always.
+2. no open MUST-FIX issue names the PR;
+3. the owner has not asked to hold it.
 
 Process changes (`PRINCIPLES.md`, `CLAUDE.md`, `.claude/**`) merge on the
-same conditions (owner decision 4).
-
-While a milestone PR waits for its review, Claude may start the next
-unblocked request on its own branch.
+same conditions (owner decision 4). Tags follow the milestone steps above;
+uploading to PyPI is the owner's, always.
 
 ## Project slot
 
@@ -134,7 +130,7 @@ unblocked request on its own branch.
   | G2 lint | `ruff check` | the `pyproject.toml` rule set (`E4 E7 E9 F B`) over `youtube3/`, `samples/`, `tests/` | every PR, CI | 1 | deterministic |
   | G3 unit tests | `pytest -q` | the client's requests and results over canned responses (`tests/conftest.py`: the bundled discovery document, `HttpMockSequence`, no network); known bugs pinned as strict `xfail` | every PR, CI | 1 | deterministic, offline; a failure is a real failure |
   | G4 package | `python -m build`, `twine check --strict`, install the wheel in a fresh venv and `import youtube3` outside the checkout | the metadata, the declared dependencies resolve, and the package imports from an install | every PR, CI | 1 | deterministic given the package index; a network error is re-run once and recorded |
-  | G5 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | milestone PRs that change an API call, **only with the owner's go** — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
+  | G5 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | by the owner, before a milestone tag whose changes touch an API call — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
 
   CI (`.github/workflows/ci.yml`) runs G1–G4 on Python 3.11 and 3.14 for
   every pull request and every push to `master`; a red CI does not merge.
@@ -175,23 +171,24 @@ unblocked request on its own branch.
      2026-09-23 because `google.api_core` stops releasing for 3.10 after its
      end of life on 2026-10-04.
   2. **Review:** Claude Code only, with an **independent review at
-     milestones**, as in discola-web and Geoclick2027, except that a
-     milestone PR waits for it before merging. This replaces the
-     fresh-context review of every non-trivial change: outside milestones,
-     Claude's self-verification in the PR is the record. The verdict protocol
+     milestones**, as in discola-web and Geoclick2027. On 2026-09-23 the
+     owner defined a milestone as a **tag**, a point in time, not a PR; the
+     tag waits for the review, pull requests do not. Claude creates the tag
+     after AGREE. This replaces the fresh-context review of every
+     non-trivial change: between milestones, Claude's self-verification in
+     each PR is the record. The verdict protocol
      of `PRINCIPLES.md` (target proof, rounds, materiality, owner decisions,
      defect path) governs the milestone reviews.
   3. **Records live on GitHub.** The proposal issue is the design record; the
-     verdict comment and the `review` issues are the review record; there are
-     no `design/` or `reviews/` directories. The completion note is a comment
+     milestone issue, its verdict comment and the `review` issues are the
+     review record; there are no `design/` or `reviews/` directories. The completion note is a comment
      on the proposal issue when its PR merges. Implementation does not wait
      for a proposal review: the owner's go on the proposal starts the branch.
-  4. **`merge: auto`**, with the conditions in **Merging** above. Like
-     `PRINCIPLES.md`'s ("review clean plus gates green"), but the review
-     condition applies to milestone PRs only. Releases stay with the owner.
-     Process changes first waited for the owner too; on 2026-09-23 the owner
-     ruled that a green PR that is not a milestone is Claude's to merge,
-     process changes included.
+  4. **`merge: auto`**, with the conditions in **Merging** above. Unlike
+     `PRINCIPLES.md`'s ("review clean plus gates green"), a pull request
+     never waits for a review; the review gates the milestone tag instead.
+     On 2026-09-23 the owner ruled that a green PR is Claude's to merge,
+     process changes included. PyPI uploads stay with the owner.
   5. **License: BSD-3-Clause**, with a `LICENSE` file, replacing the bare
      "BSD License" published up to 1.2.5 (#7). Chosen by the owner,
      2026-09-23.
