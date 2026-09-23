@@ -1,21 +1,13 @@
-from youtube3.youtube_client import *
-from oauth2client.tools import argparser
-import os
+from _common import client, parser
 
 if __name__ == "__main__":
-    argparser.add_argument('--playlistSource')
-    argparser.add_argument('--playlistTarget')
-    argparser.add_argument('--start')
-    argparser.add_argument('--end')
+    arguments = parser("Move positions start..end-1 of one playlist to another.")
+    arguments.add_argument("--playlistSource", required=True)
+    arguments.add_argument("--playlistTarget", required=True)
+    arguments.add_argument("--start", type=int, required=True)
+    arguments.add_argument("--end", type=int, required=True)
+    args = arguments.parse_args()
 
-    youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'), True)
-
-    args = argparser.parse_args()
-
-    playlist_source = args.playlistSource
-    playlist_target = args.playlistTarget
-    start = int(args.start)
-    end = int(args.end)
-
-    youtube.copy_to_playlist(playlist_source, playlist_target, start, end)
-    youtube.delete_from_playlist(playlist_source, start, end)
+    youtube = client(args)
+    youtube.copy_to_playlist(args.playlistSource, args.playlistTarget, args.start, args.end)
+    youtube.delete_from_playlist(args.playlistSource, args.start, args.end)

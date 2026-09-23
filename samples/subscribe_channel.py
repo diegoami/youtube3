@@ -1,9 +1,8 @@
-from youtube3.youtube_client import *
-from oauth2client.tools import argparser
-import os
+from _common import client, parser
 
 if __name__ == "__main__":
-    argparser.add_argument('--channelId')
-    args = argparser.parse_args()
-    youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
-    youtube.subscribe_channel(args.channelId)
+    arguments = parser("Subscribe to a channel.")
+    arguments.add_argument("--channelId", required=True)
+    args = arguments.parse_args()
+
+    client(args).subscribe_channel(args.channelId)

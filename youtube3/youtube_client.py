@@ -1,42 +1,49 @@
+import logging
+from pathlib import Path
 
-from googleapiclient import sample_tools
-import traceback
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+from .auth import load_credentials
 from .exceptions import ChannelNotFoundException
 
+logger = logging.getLogger("youtube3")
+
+# The largest page the list endpoints return, which saves quota and requests.
+PAGE_SIZE = 50
+
+
 class YoutubeClient:
-    def __init__(self, client_json_file, debug=False):
-        service, flags = self.login(client_json_file)
+    def __init__(self, client_json_file=None, debug=False, *, token_file=None, service=None):
+        """Log in and build the YouTube client.
+
+        client_json_file: the OAuth client secrets file from the Google Cloud
+        console. token_file: where the login is saved; by default token.json
+        next to the client secrets. service: an already-built client, used
+        instead of logging in. debug is kept for compatibility and unused.
+        """
+        if service is None:
+            if client_json_file is None:
+                raise ValueError("client_json_file is required unless a service is passed")
+            service = self.login(client_json_file, token_file)
         self.youtube = service
         self.channel_snippet_map = {}
 
-
-
-    def login(self, client_json_file):
-        service, flags = sample_tools.init(
-            ['--noauth_local_webserver'], 'youtube', 'v3', __doc__, client_json_file,
-            scope='https://www.googleapis.com/auth/youtube')
-        return service, flags
+    def login(self, client_json_file, token_file=None):
+        if token_file is None:
+            token_file = Path(client_json_file).parent / "token.json"
+        credentials = load_credentials(client_json_file, token_file)
+        return build("youtube", "v3", credentials=credentials)
 
     def list_channels(self, id):
         return self.youtube.channels().list(part="contentDetails", id=id).execute()
 
     def like_video(self, video_id):
-        self.youtube.videos().rate(
-        id=video_id,
-        rating="like"
-      ).execute()
+        self.youtube.videos().rate(id=video_id, rating="like").execute()
 
     def update_snippet(self, video_id, video_snippet):
-        update_snippet = {
-            "id": video_id,
-            "snippet": video_snippet
-        }
-        return self.youtube.videos().update(
-            part='snippet',
-            body=update_snippet
-
-        ).execute()
-
+        update_snippet = {"id": video_id, "snippet": video_snippet}
+        return self.youtube.videos().update(part="snippet", body=update_snippet).execute()
 
     def get_channel_snippet(self, channel_id):
         channel_snippet = None
@@ -44,234 +51,158 @@ class YoutubeClient:
             channel_snippet = self.channel_snippet_map[channel_id]
         else:
             channel = self.get_channel(channel_id)
-            if channel and 'items' in channel and len(channel['items']) > 0  and 'snippet' in  channel['items'][0]:
-                channel_snippet = channel['items'][0]['snippet']
+            if channel and channel.get("items") and "snippet" in channel["items"][0]:
+                channel_snippet = channel["items"][0]["snippet"]
                 self.channel_snippet_map[channel_id] = channel_snippet
         if not channel_snippet:
-            raise ChannelNotFoundException('{} does not exist'.format(channel_id))
+            raise ChannelNotFoundException(f"{channel_id} does not exist")
         return channel_snippet
 
     def get_channel(self, channel_id):
-        return self.youtube.channels().list(
-            id=channel_id,
-            part='snippet'
-        ).execute()
+        return self.youtube.channels().list(id=channel_id, part="snippet").execute()
 
     def get_channel_name(self, channel_id):
-        channel_snippet = self.get_channel_snippet(channel_id)
-        channel_title = channel_snippet['title']
-        return channel_title
+        return self.get_channel_snippet(channel_id)["title"]
 
     def get_video(self, video_id):
-      return self.youtube.videos().list(
-        id=video_id,
-        part='snippet'
-      ).execute()
+        return self.youtube.videos().list(id=video_id, part="snippet").execute()
 
     def get_video_content_details(self, video_id):
-      video_content_details = self.youtube.videos().list(
-        id=video_id,
-        part='contentDetails'
-      ).execute()
-      return video_content_details['items'][0]['contentDetails']
-
+        video_content_details = self.youtube.videos().list(
+            id=video_id, part="contentDetails"
+        ).execute()
+        return video_content_details["items"][0]["contentDetails"]
 
     def upload_thumbnail(self, videoId, thumbnailUrl):
-        return self.youtube.thumbnails().set(
-            videoId = videoId,
-            media_body = thumbnailUrl
-        ).execute()
+        # media_body is a local file path; F-5 reworks thumbnails.
+        return self.youtube.thumbnails().set(videoId=videoId, media_body=thumbnailUrl).execute()
 
     def get_video_snippet(self, video_id):
         video_info = self.get_video(video_id)
-        return video_info['items'][0]['snippet']
-
-    def get_recommended(self):
-        return self.youtube.activities().list(
-            part='snippet',mine=True
-        ).execute()
+        return video_info["items"][0]["snippet"]
 
     def get_channel_id(self, videoId):
         video_snippet = self.get_video(videoId)
-        if video_snippet and 'items' in video_snippet and len(video_snippet['items']) > 0 and 'snippet' in video_snippet['items'][0]:
-            channel_id = video_snippet['items'][0]['snippet']['channelId']
-            return channel_id
-        else:
-            raise ChannelNotFoundException('{} has no channel'.format(videoId))
-
-    def get_related_videos(self, videoId,nextPageToken=None):
-        return self.youtube.search().list(
-            part='snippet', type="video", relatedToVideoId=videoId, pageToken=nextPageToken
-        ).execute()
+        if video_snippet and video_snippet.get("items") and "snippet" in video_snippet["items"][0]:
+            return video_snippet["items"][0]["snippet"]["channelId"]
+        raise ChannelNotFoundException(f"{videoId} has no channel")
 
     def get_subscriptions_channel_ids(self, nextPageToken=None):
         subscriptions = self.youtube.subscriptions().list(
-            part='snippet, contentDetails', mine="true", pageToken=nextPageToken
+            part="snippet,contentDetails", mine=True, maxResults=PAGE_SIZE, pageToken=nextPageToken
         ).execute()
-        nextPageToken = subscriptions.get('nextPageToken', None)
-        items = [{'id': item['snippet']['resourceId']['channelId'], 'title' : item['snippet']['title'] }
-                 for item in subscriptions['items']]
+        nextPageToken = subscriptions.get("nextPageToken", None)
+        items = [
+            {"id": item["snippet"]["resourceId"]["channelId"], "title": item["snippet"]["title"]}
+            for item in subscriptions["items"]
+        ]
         return items, nextPageToken
 
     def get_channels(self):
-        return self.youtube.channels().list(
-            part='contentDetails', mine="true"
-        ).execute()
+        return self.youtube.channels().list(part="contentDetails", mine=True).execute()
 
     def iterate_subscriptions_in_channel(self):
         items, nextPageToken = self.get_subscriptions_channel_ids()
         yield from items
         while nextPageToken:
-            items, nextPageToken = self.get_subscriptions_channel_ids(nextPageToken )
+            items, nextPageToken = self.get_subscriptions_channel_ids(nextPageToken)
             yield from items
 
     def liked_channel(self):
-        channels = self.youtube.channels().list(
-            part='snippet,contentDetails', mine="true"
-        ).execute()
+        channels = self.youtube.channels().list(part="snippet,contentDetails", mine=True).execute()
         try:
-            return channels['items'][0]['contentDetails']['relatedPlaylists']['likes']
-        except:
+            return channels["items"][0]["contentDetails"]["relatedPlaylists"]["likes"]
+        except (KeyError, IndexError):
             return None
 
     def playlist_snippet(self, playlistId):
-        playlist_result = self.youtube.playlists().list(
-            part='snippet', id=playlistId).execute()
+        playlist_result = self.youtube.playlists().list(part="snippet", id=playlistId).execute()
         playlist_items = playlist_result["items"]
         if playlist_items:
-            playlist_snippet = playlist_items[0]["snippet"]
-        else:
-            playlist_snippet = None
-        return playlist_snippet
+            return playlist_items[0]["snippet"]
+        return None
 
     def playlist_name(self, playlistId):
         playlist_snippet = self.playlist_snippet(playlistId=playlistId)
         if playlist_snippet:
             return playlist_snippet["localized"]["title"]
-        else:
-            return None
+        return None
 
     def videos_in_playlist(self, playlistId, nextPageToken=None):
-
-        playlistItems = self.youtube.playlistItems().list(
-            part='snippet,contentDetails', playlistId=playlistId, pageToken=nextPageToken
+        return self.youtube.playlistItems().list(
+            part="snippet,contentDetails",
+            playlistId=playlistId,
+            maxResults=PAGE_SIZE,
+            pageToken=nextPageToken,
         ).execute()
-        return playlistItems
-
-
-
 
     def update_status(self, video_id, privacy_status):
-
         if privacy_status not in ["private", "unlisted", "public"]:
             raise ValueError("privacy_status must be private, unlisted or public")
 
         self.youtube.videos().update(
             part="status",
-            body={
-                "id": video_id,
-                "status": {
-                    "privacyStatus": privacy_status
-                }
-            }
+            body={"id": video_id, "status": {"privacyStatus": privacy_status}},
         ).execute()
 
     def iterate_videos_in_playlist(self, playlistId, maxCount=None):
-        count = 0
+        """Yield the playlist one page at a time; at most maxCount pages when given."""
+        max_pages = int(maxCount) if maxCount else None
         videos = self.videos_in_playlist(playlistId)
         yield videos
-        count += 1
-        while 'nextPageToken' in videos:
-            videos = self.videos_in_playlist(playlistId, videos['nextPageToken'])
+        pages = 1
+        while "nextPageToken" in videos and (max_pages is None or pages < max_pages):
+            videos = self.videos_in_playlist(playlistId, videos["nextPageToken"])
             yield videos
-            count += 1
-            if maxCount and count > int(maxCount):
-                break
+            pages += 1
+
+    def _items_in_range(self, playlistId, start, end):
+        """The playlist items at positions start (inclusive) to end (exclusive)."""
+        position = 0
+        for page in self.iterate_videos_in_playlist(playlistId):
+            for item in page["items"]:
+                if position >= end:
+                    return
+                if position >= start:
+                    yield item
+                position += 1
 
     def delete_from_playlist(self, playlist_source, start, end):
-        counter = 0
-        ids_to_delete = []
-        for video_items in self.iterate_videos_in_playlist(playlist_source):
-            for item in video_items["items"]:
-                if (start <= counter < end):
-                    id = item["id"]
-                    videoId = item["contentDetails"]["videoId"]
-                    ids_to_delete.append(id)
-                    counter += 1
-        for id in ids_to_delete:
-            print(f"Trying to remove video {videoId} from {playlist_source}")
-            self.youtube.playlistItems().delete(id=id).execute()
-            print(f"Successfully removed video {videoId} from {playlist_source}")
+        # Collect first: deleting while paging would shift the positions.
+        items = list(self._items_in_range(playlist_source, start, end))
+        for item in items:
+            video_id = item["contentDetails"]["videoId"]
+            logger.info("Removing video %s from %s", video_id, playlist_source)
+            self.youtube.playlistItems().delete(id=item["id"]).execute()
+            logger.info("Removed video %s from %s", video_id, playlist_source)
 
     def copy_to_playlist(self, playlist_source, playlist_target, start, end):
-        counter = 0
-        for video_items in self.iterate_videos_in_playlist(playlist_source):
-            for item in video_items["items"]:
-                if (start <= counter < end):
-                    videoId = item["contentDetails"]["videoId"]
-                    insert_snippet = {
-                        "snippet": {
-                            "playlistId" : playlist_target,
-                            "resourceId" : {
-                                "kind" : "youtube#video",
-                                "videoId" : videoId
-                            }
-                        }
-                    }
-                    self.youtube.playlistItems().insert(part="snippet", body=insert_snippet).execute()
-                    print(f"Copied video {videoId} from {playlist_source} to {playlist_target}")
-                    counter += 1
-
-    def iterate_related_videos(self, videoId,maxCount=None):
-        count = 0
-        videos = self.get_related_videos(videoId)
-        yield videos
-        count += 1
-        while 'nextPageToken' in videos:
-            videos = self.get_related_videos(videoId, videos ['nextPageToken'])
-            yield videos
-            count  += 1
-            if maxCount and count > int(maxCount):
-                break
+        for item in self._items_in_range(playlist_source, start, end):
+            video_id = item["contentDetails"]["videoId"]
+            insert_snippet = {
+                "snippet": {
+                    "playlistId": playlist_target,
+                    "resourceId": {"kind": "youtube#video", "videoId": video_id},
+                }
+            }
+            self.youtube.playlistItems().insert(part="snippet", body=insert_snippet).execute()
+            logger.info("Copied video %s from %s to %s", video_id, playlist_source, playlist_target)
 
     def subscribe_channel(self, channelId):
         self.youtube.subscriptions().insert(
-            part='snippet',
-            body=dict(
-                snippet=dict(
-                    resourceId=dict(
-                        channelId=channelId
-                    )
-                )
-            )).execute()
+            part="snippet",
+            body={"snippet": {"resourceId": {"channelId": channelId}}},
+        ).execute()
 
-    def verify_video(self, video_id, country='DE'):
+    def verify_video(self, video_id, country="DE"):
+        """True when the video exists and is not blocked in the country."""
         try:
-            videos = self.youtube.videos().list(
-                id=video_id,
-                part='contentDetails'
-            ).execute()
-            if 'items' in videos:
-                video_items = videos['items']
-                if video_items:
-                    if video_items[0]:
-                        if 'contentDetails' in video_items[0]:
-                            contentDetails = video_items[0]['contentDetails']
-                            if 'regionRestriction' in contentDetails and 'blocked' in contentDetails[
-                                'regionRestriction'] and country in contentDetails['regionRestriction']['blocked']:
-                                return False
-                            else:
-                                return True
-                        else:
-                            return False
-                    else:
-                        return False
-                else:
-                    return False
-            else:
-                return False
-        except:
-            traceback.print_exc()
+            videos = self.youtube.videos().list(id=video_id, part="contentDetails").execute()
+        except HttpError:
+            logger.exception("Could not look up video %s", video_id)
             return False
-
-
+        video_items = videos.get("items")
+        if not video_items or not video_items[0] or "contentDetails" not in video_items[0]:
+            return False
+        blocked = video_items[0]["contentDetails"].get("regionRestriction", {}).get("blocked", [])
+        return country not in blocked
