@@ -58,7 +58,7 @@ The `YoutubeClient` class provides a set of methods for interacting with the You
 
 ## DEVELOPMENT
 
-Python 3.10 or newer.
+Python 3.11 or newer. BSD-3-Clause licensed (`LICENSE`).
 
 ```
 pip install -e ".[dev]"

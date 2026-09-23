@@ -7,17 +7,14 @@ name = "youtube3"
 version = "1.2.5"
 description = "Python Youtube v3 API Wrapper"
 readme = "README.md"
-requires-python = ">=3.10"
-# As published for 1.2.5. The table form and the license classifier are
-# deprecated by setuptools (removal 2027-02-18); an SPDX expression and a
-# LICENSE file replace them once the owner picks the BSD variant (#7).
-license = { text = "BSD License" }
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 authors = [{ name = "Diego Amicabile", email = "diego.amicabile@gmail.com" }]
 keywords = ["youtube", "wrapper", "oauth2", "v3"]
 classifiers = [
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -44,7 +41,7 @@ testpaths = ["tests"]
 xfail_strict = true
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 include = ["youtube3/**/*.py", "samples/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
