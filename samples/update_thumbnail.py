@@ -6,9 +6,9 @@ if __name__ == "__main__":
     argparser.add_argument('--videoId')
     argparser.add_argument('--thumbnail')
     args = argparser.parse_args()
-    if args.videoId == None:
+    if args.videoId is None:
         print("required argument --videoId <videoId>")
-    if args.thumbnail == None:
+    if args.thumbnail is None:
         print("required argument --thumbnail <thumbnailUrl>")
 
     else:

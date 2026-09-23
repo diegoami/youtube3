@@ -46,8 +46,7 @@ A change is **non-trivial** if it can change:
 Anything that meets none of (a)–(d) is **trivial**. As a **conservative floor** —
 the checklist a builder uses instead of tracing imports — a diff touching
 `youtube3/**`, `samples/**`, `tests/**`, `.claude/**`, `.github/**`, the
-harness files or the package manifests (`setup.py`, `requirements.txt`,
-`youtube3/MANIFEST.in`, and `pyproject.toml` once it exists) is
+harness files or the package manifests (`pyproject.toml`, `MANIFEST.in`) is
 non-trivial whether or not the author believes the test is met, **unless it is a
 pure typo or comment that changes no behaviour, no assertion and no process
 text**.

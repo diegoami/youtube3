@@ -1,7 +1,6 @@
 from youtube3.youtube_client import *
 from oauth2client.tools import argparser
 import os
-import logging
 
 if __name__ == "__main__":
     argparser.add_argument('--playlistSource')
