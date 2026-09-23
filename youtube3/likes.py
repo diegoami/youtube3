@@ -34,6 +34,8 @@ def liked_record(item):
     thumbnail = next((thumbnails[size]["url"] for size in THUMBNAIL_SIZES if size in thumbnails), None)
     return {
         "video_id": details.get("videoId") or snippet["resourceId"]["videoId"],
+        # The entry in the likes playlist: how an unavailable video is removed.
+        "item_id": item.get("id"),
         "title": snippet.get("title"),
         "channel_id": snippet.get("videoOwnerChannelId"),
         "channel_title": snippet.get("videoOwnerChannelTitle"),
@@ -156,6 +158,10 @@ def select(videos, channel=None, liked_before=None, liked_after=None, ids=None, 
 # Rating in bulk
 
 
+class CannotRate(Exception):
+    """A video this run cannot act on, for a reason known before any request."""
+
+
 def _reason(error):
     try:
         return json.loads(error.content)["error"]["errors"][0]["reason"]
@@ -163,49 +169,90 @@ def _reason(error):
         return str(error.resp.status)
 
 
-def rate_videos(client, video_ids, rating, *, apply=False, limit=DEFAULT_LIMIT):
-    """Rate videos "like" or "none"; a dry run unless apply is True.
+def _run(videos, act, *, apply, limit):
+    """Apply act to each video, once, at most limit of them, unless a dry run.
 
-    At most limit videos are rated; the rest are reported in over_limit. The
-    run stops at the first quotaExceeded, leaving the rest in not_done; other
-    errors are reported in failed and the run goes on. Rating a video the way
-    it already is changes nothing, so a stopped run can be repeated.
+    The run stops at the first quota error, leaving the rest in not_done;
+    other errors are reported in failed and the run goes on. Acting twice on
+    a video changes nothing, so a stopped run can be repeated.
     """
-    if rating not in ("like", "none"):
-        raise ValueError('rating must be "like" or "none"')
-    ids = list(dict.fromkeys(video_ids))
+    unique = {}
+    for video in videos:
+        unique.setdefault(video["video_id"], video)
+    ordered = list(unique.values())
+    planned = [video["video_id"] for video in ordered[:limit]]
     result = {
-        "planned": ids[:limit],
-        "over_limit": ids[limit:],
+        "planned": planned,
+        "over_limit": [video["video_id"] for video in ordered[limit:]],
         "done": [],
         "not_done": [],
         "failed": {},
         "stopped": None,
-        "cost": len(ids[:limit]) * RATE_COST,
+        "cost": len(planned) * RATE_COST,
     }
     if not apply:
         return result
-    for position, video_id in enumerate(result["planned"]):
+    for position, video in enumerate(ordered[:limit]):
+        video_id = video["video_id"]
         try:
-            client.youtube.videos().rate(id=video_id, rating=rating).execute()
+            act(video)
+        except CannotRate as error:
+            logger.info("Skipped %s: %s", video_id, error)
+            result["failed"][video_id] = str(error)
+            continue
         except HttpError as error:
             reason = _reason(error)
             if reason in ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded"):
                 logger.info("Stopped at %s: %s", video_id, reason)
                 result["stopped"] = reason
-                result["not_done"] = result["planned"][position:]
+                result["not_done"] = planned[position:]
                 break
-            logger.info("Could not rate %s: %s", video_id, reason)
+            logger.info("Failed on %s: %s", video_id, reason)
             result["failed"][video_id] = reason
             continue
-        logger.info("Rated %s %s", video_id, rating)
         result["done"].append(video_id)
     return result
 
 
-def unlike_videos(client, video_ids, *, apply=False, limit=DEFAULT_LIMIT):
-    return rate_videos(client, video_ids, "none", apply=apply, limit=limit)
+def rate_videos(client, video_ids, rating, *, apply=False, limit=DEFAULT_LIMIT):
+    """Rate videos by id "like" or "none"; a dry run unless apply is True."""
+    if rating not in ("like", "none"):
+        raise ValueError('rating must be "like" or "none"')
+
+    def rate(video):
+        client.youtube.videos().rate(id=video["video_id"], rating=rating).execute()
+        logger.info("Rated %s %s", video["video_id"], rating)
+
+    return _run([{"video_id": video_id} for video_id in video_ids], rate, apply=apply, limit=limit)
 
 
-def like_videos(client, video_ids, *, apply=False, limit=DEFAULT_LIMIT):
-    return rate_videos(client, video_ids, "like", apply=apply, limit=limit)
+def unlike_videos(client, videos, *, apply=False, limit=DEFAULT_LIMIT):
+    """Unlike liked-video records; a dry run unless apply is True.
+
+    YouTube refuses to rate deleted or private videos, so those are removed
+    from the likes playlist by their item_id instead (both cost 50 units).
+    """
+
+    def unlike(video):
+        if video.get("available", True):
+            client.youtube.videos().rate(id=video["video_id"], rating="none").execute()
+            logger.info("Unliked %s", video["video_id"])
+            return
+        if not video.get("item_id"):
+            raise CannotRate("unavailable, and the export has no item_id: export again")
+        client.youtube.playlistItems().delete(id=video["item_id"]).execute()
+        logger.info("Removed unavailable %s from the likes", video["video_id"])
+
+    return _run(videos, unlike, apply=apply, limit=limit)
+
+
+def like_videos(client, videos, *, apply=False, limit=DEFAULT_LIMIT):
+    """Like liked-video records again, as an undo log holds them."""
+
+    def like(video):
+        if not video.get("available", True):
+            raise CannotRate("deleted or private: YouTube does not let it be liked again")
+        client.youtube.videos().rate(id=video["video_id"], rating="like").execute()
+        logger.info("Liked %s again", video["video_id"])
+
+    return _run(videos, like, apply=apply, limit=limit)

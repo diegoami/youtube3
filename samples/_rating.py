@@ -12,9 +12,10 @@ def show(videos, verb):
 
 
 def run(youtube, videos, rating, apply, limit, log_folder):
-    """Rate videos, write the undo log, and return the records rated."""
+    """Unlike or like again, write the undo log, and return the records done."""
     verb = "unlike" if rating == "none" else "like again"
-    result = likes.rate_videos(youtube, [v["video_id"] for v in videos], rating, apply=apply, limit=limit)
+    act = likes.unlike_videos if rating == "none" else likes.like_videos
+    result = act(youtube, videos, apply=apply, limit=limit)
     planned = [v for v in videos if v["video_id"] in set(result["planned"])]
     show(planned, verb)
     print(f"Quota: {result['cost']} of {likes.DAILY_QUOTA} units a day.")
