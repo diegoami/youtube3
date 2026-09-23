@@ -45,6 +45,7 @@ def likes_page(items, next_token=None):
 def record(video_id, liked_at="2026-09-01T10:00:00Z", channel_id="UC1", channel_title="Channel One", available=True):
     return {
         "video_id": video_id,
+        "item_id": f"item-{video_id}",
         "title": f"title {video_id}",
         "channel_id": channel_id,
         "channel_title": channel_title,
@@ -65,6 +66,7 @@ def quota_exceeded():
 def test_a_liked_record_has_the_video_its_channel_and_when_it_was_liked():
     assert likes.liked_record(liked_item("v1", liked_at="2026-09-02T08:30:00Z")) == {
         "video_id": "v1",
+        "item_id": "item-v1",
         "title": "title v1",
         "channel_id": "UC1",
         "channel_title": "Channel One",
@@ -78,6 +80,7 @@ def test_a_liked_record_has_the_video_its_channel_and_when_it_was_liked():
 def test_a_deleted_video_is_kept_as_unavailable():
     assert likes.liked_record(deleted_item("gone")) == {
         "video_id": "gone",
+        "item_id": "item-gone",
         "title": "Deleted video",
         "channel_id": None,
         "channel_title": None,
@@ -219,7 +222,7 @@ def test_criteria_combine():
 def test_a_dry_run_sends_nothing(fake):
     yt = fake()
 
-    result = likes.unlike_videos(yt.client, ["a", "b"])
+    result = likes.unlike_videos(yt.client, [record("a"), record("b")])
 
     assert yt.requests == []
     assert result["planned"] == ["a", "b"]
@@ -230,7 +233,7 @@ def test_a_dry_run_sends_nothing(fake):
 def test_the_limit_caps_a_run_and_duplicates_count_once(fake):
     yt = fake()
 
-    result = likes.unlike_videos(yt.client, ["a", "b", "a", "c"], limit=2)
+    result = likes.unlike_videos(yt.client, [record("a"), record("b"), record("a"), record("c")], limit=2)
 
     assert result["planned"] == ["a", "b"]
     assert result["over_limit"] == ["c"]
@@ -239,7 +242,7 @@ def test_the_limit_caps_a_run_and_duplicates_count_once(fake):
 def test_apply_rates_each_planned_video_none(fake):
     yt = fake((204, None), (204, None), (204, None))
 
-    result = likes.unlike_videos(yt.client, ["a", "b", "c"], apply=True, limit=2)
+    result = likes.unlike_videos(yt.client, [record("a"), record("b"), record("c")], apply=True, limit=2)
 
     assert [(r.method, r.path, r.params["id"], r.params["rating"]) for r in yt.requests] == [
         ("POST", "videos/rate", "a", "none"),
@@ -251,7 +254,7 @@ def test_apply_rates_each_planned_video_none(fake):
 def test_a_run_stops_at_the_quota_and_reports_the_rest(fake):
     yt = fake((204, None), quota_exceeded(), (204, None))
 
-    result = likes.unlike_videos(yt.client, ["a", "b", "c"], apply=True)
+    result = likes.unlike_videos(yt.client, [record("a"), record("b"), record("c")], apply=True)
 
     assert result["done"] == ["a"]
     assert result["not_done"] == ["b", "c"]
@@ -263,7 +266,7 @@ def test_another_error_is_reported_and_the_run_goes_on(fake):
     not_found = (404, {"error": {"code": 404, "errors": [{"reason": "videoNotFound"}]}})
     yt = fake(not_found, (204, None))
 
-    result = likes.unlike_videos(yt.client, ["gone", "b"], apply=True)
+    result = likes.unlike_videos(yt.client, [record("gone"), record("b")], apply=True)
 
     assert result["failed"] == {"gone": "videoNotFound"}
     assert result["done"] == ["b"]
@@ -272,7 +275,7 @@ def test_another_error_is_reported_and_the_run_goes_on(fake):
 def test_relike_rates_like(fake):
     yt = fake((204, None))
 
-    likes.like_videos(yt.client, ["a"], apply=True)
+    likes.like_videos(yt.client, [record("a")], apply=True)
 
     assert yt.requests[0].params["rating"] == "like"
 
@@ -280,3 +283,44 @@ def test_relike_rates_like(fake):
 def test_an_unknown_rating_is_refused(fake):
     with pytest.raises(ValueError):
         likes.rate_videos(fake().client, ["a"], "dislike", apply=True)
+
+
+def test_an_unavailable_video_is_removed_from_the_likes_playlist_not_rated(fake):
+    # YouTube answers notFound or forbidden to rating deleted or private videos.
+    yt = fake((204, None))
+
+    result = likes.unlike_videos(yt.client, [record("gone", available=False)], apply=True)
+
+    [request] = yt.requests
+    assert (request.method, request.path, request.params["id"]) == ("DELETE", "playlistItems", "item-gone")
+    assert result["done"] == ["gone"]
+
+
+def test_an_unavailable_video_without_an_item_id_is_skipped_without_a_request(fake):
+    yt = fake()
+    old = record("gone", available=False)
+    del old["item_id"]
+
+    result = likes.unlike_videos(yt.client, [old], apply=True)
+
+    assert yt.requests == []
+    assert "export again" in result["failed"]["gone"]
+
+
+def test_an_unavailable_video_cannot_be_liked_again(fake):
+    yt = fake()
+
+    result = likes.like_videos(yt.client, [record("gone", available=False)], apply=True)
+
+    assert yt.requests == []
+    assert result["done"] == []
+    assert "gone" in result["failed"]
+
+
+def test_rate_videos_by_id_rates_them(fake):
+    yt = fake((204, None))
+
+    result = likes.rate_videos(yt.client, ["a"], "none", apply=True)
+
+    assert (yt.requests[0].path, yt.requests[0].params["rating"]) == ("videos/rate", "none")
+    assert result["done"] == ["a"]

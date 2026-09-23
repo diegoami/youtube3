@@ -54,7 +54,7 @@ Each takes `--client-secrets` (default `samples/client_secrets.json`) and
 ```
 python samples/export_liked_videos.py --out liked.json
 python samples/unlike_videos.py --from liked.json --channel "Some Channel" --liked-before 2020-01-01
-python samples/unlike_videos.py --from liked.json --unavailable --apply
+python samples/unlike_videos.py --from liked.json --unavailable --apply   # clears deleted and private ones
 python samples/relike_videos.py --from unliked-20260924-120000.json --apply
 ```
 
@@ -65,10 +65,14 @@ python samples/relike_videos.py --from unliked-20260924-120000.json --apply
 -   `unlike_videos.py` selects from an export by channel (id or title),
     date, ids or availability; the criteria combine. It shows what it would
     do and changes nothing without `--apply`.
+-   YouTube refuses to rate deleted or private videos, so those are removed
+    from the Liked videos playlist instead. They cannot be liked again.
 -   An applied run writes `unliked-<time>.json`; `relike_videos.py` replays
-    it to like them again.
--   Quota: listing costs 1 unit per 50 likes; rating costs **50 units per
-    video**, out of 10,000 a day. A run rates at most `--limit` (150) videos
+    it to like the available ones again.
+-   Right after a run, the API can still list a removed like for a moment;
+    the export is updated by the run itself.
+-   Quota: listing costs 1 unit per 50 likes; unliking costs **50 units per
+    video** (rating, or removing an unavailable one), out of 10,000 a day. A run rates at most `--limit` (150) videos
     and stops cleanly at the quota; run it again the next day for the rest.
 
 These files are personal data; `.gitignore` keeps them out of git.
