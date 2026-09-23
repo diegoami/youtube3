@@ -85,11 +85,11 @@ when all of these hold, and records in the PR which ones it checked:
    review's findings (listed in the PR) — or the owner has said to merge
    without review, which the PR records;
 4. the owner has not asked to hold it;
-5. it is not a **process change**: a diff to `PRINCIPLES.md`, `CLAUDE.md`,
-   the process sections of `ROADMAP.md`, or `.claude/**` waits for the
-   owner's merge;
-6. it is not a release: tagging `vX.Y.Z` and uploading to PyPI are the
+5. it is not a release: tagging `vX.Y.Z` and uploading to PyPI are the
    owner's, always.
+
+Process changes (`PRINCIPLES.md`, `CLAUDE.md`, `.claude/**`) merge on the
+same conditions (owner decision 4).
 
 While a milestone PR waits for its review, Claude may start the next
 unblocked request on its own branch.
@@ -136,7 +136,7 @@ unblocked request on its own branch.
   | G4 package | `python -m build`, `twine check --strict`, install the wheel in a fresh venv and `import youtube3` outside the checkout | the metadata, the declared dependencies resolve, and the package imports from an install | every PR, CI | 1 | deterministic given the package index; a network error is re-run once and recorded |
   | G5 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | milestone PRs that change an API call, **only with the owner's go** — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
 
-  CI (`.github/workflows/ci.yml`) runs G1–G4 on Python 3.10 and 3.14 for
+  CI (`.github/workflows/ci.yml`) runs G1–G4 on Python 3.11 and 3.14 for
   every pull request and every push to `master`; a red CI does not merge.
   Locally, install with `pip install -e ".[dev]"` and run the same commands;
   `python -m build` leaves `dist/` and `*.egg-info/`, both ignored.
@@ -144,7 +144,8 @@ unblocked request on its own branch.
   - English for code, comments, docs, commits, and command-line output.
     Commit subjects are imperative, sentence case, no prefix (as in the
     existing history).
-  - Python **3.10+** (owner decision 1).
+  - Python **3.11+** (owner decision 1); licensed BSD-3-Clause (owner
+    decision 5).
   - The base client is Google's `google-api-python-client`; a new runtime
     dependency is named in the PR with its reason.
   - `YoutubeClient` is public on PyPI: a change that breaks an existing
@@ -170,7 +171,9 @@ unblocked request on its own branch.
   - **Open work:** `ROADMAP.md`, and GitHub issues on `diegoami/youtube3`.
 - **owner decisions, 2026-09-23** (each an owner-decision amendment to
   `PRINCIPLES.md` for this project):
-  1. **Python 3.10+.** Default recommended by Claude, taken by the owner.
+  1. **Python 3.11+.** First 3.10+; raised to 3.11 by the owner on
+     2026-09-23 because `google.api_core` stops releasing for 3.10 after its
+     end of life on 2026-10-04.
   2. **Review:** Claude Code only, with an **independent review at
      milestones**, as in discola-web and Geoclick2027, except that a
      milestone PR waits for it before merging. This replaces the
@@ -185,8 +188,13 @@ unblocked request on its own branch.
      for a proposal review: the owner's go on the proposal starts the branch.
   4. **`merge: auto`**, with the conditions in **Merging** above. Like
      `PRINCIPLES.md`'s ("review clean plus gates green"), but the review
-     condition applies to milestone PRs only; process changes and releases
-     stay with the owner.
+     condition applies to milestone PRs only. Releases stay with the owner.
+     Process changes first waited for the owner too; on 2026-09-23 the owner
+     ruled that a green PR that is not a milestone is Claude's to merge,
+     process changes included.
+  5. **License: BSD-3-Clause**, with a `LICENSE` file, replacing the bare
+     "BSD License" published up to 1.2.5 (#7). Chosen by the owner,
+     2026-09-23.
 - **provenance:** adopted from harness_template release `r4` (tag commit
   `39c29e3`), taking the post-release wording fixes up to `d93c257`, on
   2026-09-23. Taken: `PRINCIPLES.md` (the conservative floor rewritten for
