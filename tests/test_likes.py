@@ -324,3 +324,17 @@ def test_rate_videos_by_id_rates_them(fake):
 
     assert (yt.requests[0].path, yt.requests[0].params["rating"]) == ("videos/rate", "none")
     assert result["done"] == ["a"]
+
+
+def test_two_undo_logs_in_the_same_second_are_both_kept(tmp_path):
+    first = likes.write_undo_log(tmp_path, [record("a")], "none", now=NOW)
+    second = likes.write_undo_log(tmp_path, [record("b")], "none", now=NOW)
+
+    assert (first.name, second.name) == ("unliked-20260924-120000.json", "unliked-20260924-120000-2.json")
+    assert json.loads(first.read_text())["videos"][0]["video_id"] == "a"
+
+
+def test_a_datetime_bound_is_the_exact_instant():
+    instant = datetime(2020, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+
+    assert ids(likes.select(VIDEOS, liked_before=instant)) == ["edge", "old", "gone"]
