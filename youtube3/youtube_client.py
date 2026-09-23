@@ -33,7 +33,8 @@ class YoutubeClient:
         if token_file is None:
             token_file = Path(client_json_file).parent / "token.json"
         credentials = load_credentials(client_json_file, token_file)
-        return build("youtube", "v3", credentials=credentials)
+        # The bundled discovery document is used; the file cache needs oauth2client.
+        return build("youtube", "v3", credentials=credentials, cache_discovery=False)
 
     def list_channels(self, id):
         return self.youtube.channels().list(part="contentDetails", id=id).execute()

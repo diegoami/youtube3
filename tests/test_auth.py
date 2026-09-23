@@ -136,11 +136,16 @@ def test_the_token_defaults_to_token_json_next_to_the_secrets(monkeypatch, tmp_p
         "youtube3.youtube_client.load_credentials",
         lambda secrets, token: calls.append((secrets, token)) or "credentials",
     )
-    monkeypatch.setattr("youtube3.youtube_client.build", lambda *args, **kwargs: "service")
+    builds = []
+    monkeypatch.setattr(
+        "youtube3.youtube_client.build", lambda *args, **kwargs: builds.append(kwargs) or "service"
+    )
 
     client = YoutubeClient(tmp_path / "secrets" / "client_secrets.json")
 
     assert client.youtube == "service"
+    # Without it, every login logs "file_cache is only supported with oauth2client<4.0.0".
+    assert builds == [{"credentials": "credentials", "cache_discovery": False}]
     assert calls == [(tmp_path / "secrets" / "client_secrets.json", tmp_path / "secrets" / "token.json")]
 
 
