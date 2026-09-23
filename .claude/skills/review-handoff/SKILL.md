@@ -7,7 +7,8 @@ description: Write the prompt the owner runs in a different model (Codex, DeepSe
 
 First check the milestone is one: `CLAUDE.md` ("Independent review at
 milestones") lists them. A tooling or CI fix without a proposal, a docs or
-wording change, a small fix inside an agreed proposal, or a re-review is not.
+wording change, or a small fix inside an agreed proposal is not. A re-review
+of a milestone PR is (see the end of this file).
 Do not write a prompt for it; at most say in one line that a review is
 possible, and write the prompt only if the owner asks.
 
@@ -18,9 +19,10 @@ session** of that tool: a reused session carries its earlier conclusions. The
 reviewer starts with no context and posts its results to GitHub itself, so
 the prompt has to carry everything it needs, and it must not assume a tool.
 
-The review is offered, never waited on. Do not stop work for it: set the PR
-body's `Review:` line to `not run`, and update it when a verdict arrives
-(`AGREE at <sha>`, or `BLOCK at <sha>: #n, #m`).
+A milestone PR does not merge before its review (`CLAUDE.md`, Merging): set
+the PR body's `Review:` line to `not run`, and update it when a verdict
+arrives (`AGREE at <sha>`, or `BLOCK at <sha>: #n, #m`). While it waits,
+other work may go on in other branches.
 
 This repository has no `AGENTS.md`. The prompt's first line makes the tool
 the reviewer; a tool that reads `CLAUDE.md` on its own finds the same
@@ -150,5 +152,8 @@ Rules:
   default. Nits: your call, and say which you took.
 - Reply on the thread with what happened to each finding. Write the body with
   the Write tool and pass it with `--body-file` (UTF-8, no BOM).
-- Rerun the gates after any fix. Do not offer a re-review prompt; write one
-  only if the owner asks.
+- Rerun the gates after any fix. On a milestone PR, write the re-review
+  prompt when a BLOCK was answered with fixes, or when commits after an
+  AGREE go beyond that review's findings: the merge waits on it. The round
+  ceiling in `PRINCIPLES.md` applies; a third round that does not end in
+  AGREE goes to the owner.
