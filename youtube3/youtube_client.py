@@ -6,6 +6,7 @@ from googleapiclient.errors import HttpError
 
 from .auth import load_credentials
 from .exceptions import ChannelNotFoundException
+from .likes import LIKES_PLAYLIST, liked_record
 
 logger = logging.getLogger("youtube3")
 
@@ -115,6 +116,12 @@ class YoutubeClient:
             return channels["items"][0]["contentDetails"]["relatedPlaylists"]["likes"]
         except (KeyError, IndexError):
             return None
+
+    def iterate_liked_videos(self):
+        """Yield a record per liked video, newest like first (youtube3.likes)."""
+        for page in self.iterate_videos_in_playlist(LIKES_PLAYLIST):
+            for item in page["items"]:
+                yield liked_record(item)
 
     def playlist_snippet(self, playlistId):
         playlist_result = self.youtube.playlists().list(part="snippet", id=playlistId).execute()
