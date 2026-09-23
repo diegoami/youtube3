@@ -198,10 +198,12 @@ def test_on_windows_the_token_file_is_cut_off_from_its_folder_before_the_token_i
 
     auth.save_credentials(FakeCredentials(), token)
 
-    [call] = windows
-    assert call["args"] == ["icacls", str(token), "/inheritance:r", "/grant:r", "PC\\diego:F"]
-    assert call["kwargs"]["check"] is True
-    assert call["content"] == ""
+    assert [call["args"] for call in windows] == [
+        ["icacls", str(token), "/reset"],
+        ["icacls", str(token), "/inheritance:r", "/grant:r", "PC\\diego:F"],
+    ]
+    assert all(call["kwargs"]["check"] is True for call in windows)
+    assert [call["content"] for call in windows] == ["", ""]
     assert token.read_text() == TOKEN_JSON
 
 

@@ -64,14 +64,12 @@ def restrict_to_owner(path):
         # O_CREAT's mode does not apply to a file that already existed.
         os.chmod(path, 0o600)
         return
-    # On Windows chmod only sets the read-only flag, and a new file inherits
-    # its folder's ACL, which can let other accounts read it. Drop the
-    # inherited entries and grant the current user alone.
-    subprocess.run(
-        ["icacls", str(path), "/inheritance:r", "/grant:r", f"{windows_user()}:F"],
-        check=True,
-        capture_output=True,
-    )
+    # On Windows chmod only sets the read-only flag, and a new file gets its
+    # folder's inherited ACL, or the process's default one, either of which
+    # can let other accounts read it. Reset the file to inherited entries
+    # only, drop those, and grant the current user alone.
+    for arguments in (["/reset"], ["/inheritance:r", "/grant:r", f"{windows_user()}:F"]):
+        subprocess.run(["icacls", str(path), *arguments], check=True, capture_output=True)
 
 
 def windows_user():
