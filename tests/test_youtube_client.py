@@ -1,6 +1,6 @@
 import pytest
 
-from youtube3 import ChannelNotFoundException
+from youtube3 import ChannelNotFoundException, YoutubeClient
 
 
 def playlist_page(video_ids, next_token=None, item_prefix="item"):
@@ -160,18 +160,26 @@ def test_iterate_videos_in_playlist_follows_every_page(fake):
     assert {r.params["playlistId"] for r in yt.requests} == {"PL1"}
 
 
-def test_iterate_videos_in_playlist_max_count_current_behaviour(fake):
-    # Pins what the code does today: maxCount=1 yields two pages, not one.
+@pytest.mark.parametrize("max_count", [1, 2, "2"])
+def test_iterate_videos_in_playlist_yields_at_most_max_count_pages(fake, max_count):
     yt = fake(
         playlist_page(["a"], next_token="t1"),
         playlist_page(["b"], next_token="t2"),
         playlist_page(["c"]),
     )
 
-    pages = list(yt.client.iterate_videos_in_playlist("PL1", maxCount=1))
+    pages = list(yt.client.iterate_videos_in_playlist("PL1", maxCount=max_count))
 
-    assert len(pages) == 2
-    assert len(yt.requests) == 2
+    assert len(pages) == int(max_count)
+    assert len(yt.requests) == int(max_count)
+
+
+def test_playlist_pages_ask_for_fifty_items(fake):
+    yt = fake(playlist_page(["a"]))
+
+    list(yt.client.iterate_videos_in_playlist("PL1"))
+
+    assert yt.requests[0].params["maxResults"] == "50"
 
 
 def test_copy_to_playlist_inserts_the_range_from_the_start(fake):
@@ -193,7 +201,6 @@ def test_copy_to_playlist_inserts_the_range_from_the_start(fake):
     ]
 
 
-@pytest.mark.xfail(reason="the range counter only moves inside the range; F-2 fixes it")
 def test_copy_to_playlist_inserts_a_range_that_starts_later(fake):
     yt = fake(playlist_page(["a", "b", "c"]), {"id": "new1"}, {"id": "new2"})
 
@@ -216,10 +223,103 @@ def test_delete_from_playlist_deletes_the_range_from_the_start(fake):
     ]
 
 
-@pytest.mark.xfail(reason="the range counter only moves inside the range; F-2 fixes it")
 def test_delete_from_playlist_deletes_a_range_that_starts_later(fake):
     yt = fake(playlist_page(["a", "b", "c"]), (204, None), (204, None))
 
     yt.client.delete_from_playlist("PLsrc", 1, 3)
 
     assert [r.params["id"] for r in yt.requests[1:]] == ["item-b", "item-c"]
+
+
+def test_copy_to_playlist_counts_positions_across_pages(fake):
+    # Pages are fetched as the copy goes, so the requests interleave.
+    yt = fake(
+        playlist_page(["a", "b"], next_token="t1"),
+        {"id": "new1"},
+        playlist_page(["c", "d"]),
+        {"id": "new2"},
+    )
+
+    yt.client.copy_to_playlist("PLsrc", "PLdst", 1, 3)
+
+    assert [(r.method, r.params.get("pageToken")) for r in yt.requests] == [
+        ("GET", None),
+        ("POST", None),
+        ("GET", "t1"),
+        ("POST", None),
+    ]
+    inserts = [r for r in yt.requests if r.method == "POST"]
+    assert [r.body["snippet"]["resourceId"]["videoId"] for r in inserts] == ["b", "c"]
+
+
+def test_copy_to_playlist_stops_paging_after_the_range(fake):
+    yt = fake(playlist_page(["a", "b"], next_token="t1"), {"id": "new1"})
+
+    yt.client.copy_to_playlist("PLsrc", "PLdst", 0, 1)
+
+    assert [(r.method, r.path) for r in yt.requests] == [("GET", "playlistItems"), ("POST", "playlistItems")]
+
+
+def test_delete_from_playlist_logs_each_deleted_video(fake, caplog):
+    yt = fake(playlist_page(["a", "b"]), (204, None), (204, None))
+
+    with caplog.at_level("INFO", logger="youtube3"):
+        yt.client.delete_from_playlist("PLsrc", 0, 2)
+
+    removed = [r.getMessage() for r in caplog.records if r.getMessage().startswith("Removed")]
+    assert removed == ["Removed video a from PLsrc", "Removed video b from PLsrc"]
+
+
+# Subscriptions and likes
+
+
+def test_iterate_subscriptions_follows_every_page_fifty_at_a_time(fake):
+    def page(channel_ids, next_token=None):
+        body = {
+            "items": [
+                {"snippet": {"resourceId": {"channelId": c}, "title": f"title {c}"}}
+                for c in channel_ids
+            ]
+        }
+        if next_token:
+            body["nextPageToken"] = next_token
+        return body
+
+    yt = fake(page(["UC1"], next_token="t1"), page(["UC2"]))
+
+    subscriptions = list(yt.client.iterate_subscriptions_in_channel())
+
+    assert subscriptions == [{"id": "UC1", "title": "title UC1"}, {"id": "UC2", "title": "title UC2"}]
+    assert [r.params.get("pageToken") for r in yt.requests] == [None, "t1"]
+    assert {r.params["maxResults"] for r in yt.requests} == {"50"}
+    assert {r.params["mine"] for r in yt.requests} == {"true"}
+
+
+def test_liked_channel_is_the_likes_playlist(fake):
+    yt = fake({"items": [{"contentDetails": {"relatedPlaylists": {"likes": "LL"}}}]})
+
+    assert yt.client.liked_channel() == "LL"
+
+
+def test_liked_channel_is_none_without_a_channel(fake):
+    yt = fake({"items": []})
+
+    assert yt.client.liked_channel() is None
+
+
+def test_verify_video_is_false_when_the_api_fails(fake):
+    yt = fake((500, {"error": {"code": 500, "message": "backend error"}}))
+
+    assert yt.client.verify_video("vid1") is False
+
+
+# Construction
+
+
+def test_a_client_needs_secrets_or_a_service():
+    with pytest.raises(ValueError):
+        YoutubeClient()
+
+
+def test_the_exception_is_an_ordinary_exception():
+    assert issubclass(ChannelNotFoundException, Exception)

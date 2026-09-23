@@ -1,12 +1,9 @@
-from youtube3.youtube_client import *
-from oauth2client.tools import argparser
-import os
+from _common import client, parser
 
 if __name__ == "__main__":
-    argparser.add_argument('--videoId')
-    args = argparser.parse_args()
-    if args.videoId is None:
-        print("required argument --videoId <videoId>")
-    else:
-        youtube_client = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
-        print(youtube_client.verify_video(args.videoId))
+    arguments = parser("Say whether a video can be watched in a country.")
+    arguments.add_argument("--videoId", required=True)
+    arguments.add_argument("--country", default="DE")
+    args = arguments.parse_args()
+
+    print(client(args).verify_video(args.videoId, country=args.country))

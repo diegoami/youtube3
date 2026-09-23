@@ -37,10 +37,7 @@ class FakeYoutube:
             ]
         )
         service = build("youtube", "v3", http=self.http, developerKey="test-key")
-        # YoutubeClient.__init__ logs in; F-2 adds a way to pass a service in.
-        self.client = YoutubeClient.__new__(YoutubeClient)
-        self.client.youtube = service
-        self.client.channel_snippet_map = {}
+        self.client = YoutubeClient(service=service)
 
     @property
     def requests(self):

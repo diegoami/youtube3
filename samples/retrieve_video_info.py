@@ -1,23 +1,12 @@
-from youtube3 import YoutubeClient
-from oauth2client.tools import argparser
-import os
+from _common import client, parser
 
 if __name__ == "__main__":
-    argparser.add_argument('--videoId')
-    args = argparser.parse_args()
-    if args.videoId is None:
-        print("required argument --videoId <videoId>")
-    else:
-        youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
-        videoInfo = youtube.get_video(args.videoId)
-        video_snippet = youtube.get_video_snippet(args.videoId)
-        video_content_details = youtube.get_video_content_details(args.videoId)
-        channelId = youtube.get_channel_id(args.videoId)
+    arguments = parser("Print what the API returns for a video.")
+    arguments.add_argument("--videoId", required=True)
+    args = arguments.parse_args()
 
-        print(videoInfo['items'][0]['snippet'])
-        print(video_snippet)
-        relatedVideos = youtube.get_related_videos(args.videoId )
-        print(videoInfo)
-        print(channelId)
-        print(relatedVideos)
-        print(video_content_details)
+    youtube = client(args)
+    print(youtube.get_video(args.videoId))
+    print(youtube.get_video_snippet(args.videoId))
+    print(youtube.get_channel_id(args.videoId))
+    print(youtube.get_video_content_details(args.videoId))

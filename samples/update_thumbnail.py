@@ -1,17 +1,9 @@
-from youtube3 import YoutubeClient
-from oauth2client.tools import argparser
-import os
+from _common import client, parser
 
 if __name__ == "__main__":
-    argparser.add_argument('--videoId')
-    argparser.add_argument('--thumbnail')
-    args = argparser.parse_args()
-    if args.videoId is None:
-        print("required argument --videoId <videoId>")
-    if args.thumbnail is None:
-        print("required argument --thumbnail <thumbnailUrl>")
+    arguments = parser("Set a video's custom thumbnail from a local image file.")
+    arguments.add_argument("--videoId", required=True)
+    arguments.add_argument("--thumbnail", required=True, help="path to a local image, max 2 MB")
+    args = arguments.parse_args()
 
-    else:
-        youtube = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
-        videoInfo = youtube.get_video(args.videoId)
-        youtube.upload_thumbnail(args.videoId, args.thumbnail)
+    client(args).upload_thumbnail(args.videoId, args.thumbnail)

@@ -1,2 +1,2 @@
-class ChannelNotFoundException(BaseException):
+class ChannelNotFoundException(Exception):
     pass
