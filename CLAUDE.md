@@ -77,7 +77,7 @@ when all of these hold, and records in the PR which ones it checked:
 
 1. every gate in the gates table that the diff can affect is green **on the
    PR's head**, with the output summarised in the PR body, and CI is green
-   once CI exists;
+   on that head;
 2. no open MUST-FIX issue names the PR, and no BLOCK verdict on the current
    head is unanswered;
 3. **for a milestone PR**, the independent verdict is AGREE on the current
@@ -106,8 +106,9 @@ unblocked request on its own branch.
   being revived in 2026 to manage the owner's likes, build a landing page of
   them, and help with publishing (thumbnails, metadata, scheduling); the
   queue is `ROADMAP.md`.
-- **paths to inspect:** `youtube3/` (the package), `samples/` (one runnable
-  script per operation), `README.md`, `setup.py`, `requirements.txt`,
+- **paths to inspect:** `youtube3/` (the package), `tests/` (offline unit
+  tests), `samples/` (one runnable script per operation), `README.md`,
+  `pyproject.toml` (metadata, dependencies, pytest and ruff config),
   `ROADMAP.md`.
 - **the canonical source:** `youtube3/youtube_client.py` for behaviour. The
   method list in `README.md` mirrors it and is updated in the same change.
@@ -129,14 +130,16 @@ unblocked request on its own branch.
 
   | gate | command | covers | runs | repeats | failure model |
   |---|---|---|---|---|---|
-  | G1 compile | `python3 -m compileall -q youtube3 samples` | every module parses | every PR | 1 | deterministic |
-  | G2 install | `python3 -m venv <scratch>/venv && <scratch>/venv/bin/pip install -q . && cd <scratch> && venv/bin/python -c "import youtube3"` — then delete the `build/` and `*.egg-info/` it leaves in the checkout | the declared dependencies resolve and the package imports from an install, not the checkout | every PR touching `youtube3/**` or a manifest | 1 | deterministic given the index; a network error is re-run once and recorded |
-  | G3 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | milestone PRs that change an API call, **only with the owner's go** — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
+  | G1 compile | `python -m compileall -q youtube3 samples tests` | every module parses, samples included (they have no tests) | every PR, CI | 1 | deterministic |
+  | G2 lint | `ruff check` | the `pyproject.toml` rule set (`E4 E7 E9 F B`) over `youtube3/`, `samples/`, `tests/` | every PR, CI | 1 | deterministic |
+  | G3 unit tests | `pytest -q` | the client's requests and results over canned responses (`tests/conftest.py`: the bundled discovery document, `HttpMockSequence`, no network); known bugs pinned as strict `xfail` | every PR, CI | 1 | deterministic, offline; a failure is a real failure |
+  | G4 package | `python -m build`, `twine check --strict`, install the wheel in a fresh venv and `import youtube3` outside the checkout | the metadata, the declared dependencies resolve, and the package imports from an install | every PR, CI | 1 | deterministic given the package index; a network error is re-run once and recorded |
+  | G5 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | milestone PRs that change an API call, **only with the owner's go** — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
 
-  There are **no unit tests and no CI yet**. They are request F-1 in
-  `ROADMAP.md` (pytest with `googleapiclient.http.HttpMock`, ruff, a GitHub
-  Actions workflow); when it lands, this table gains those rows and the CI
-  becomes a merge condition.
+  CI (`.github/workflows/ci.yml`) runs G1–G4 on Python 3.10 and 3.14 for
+  every pull request and every push to `master`; a red CI does not merge.
+  Locally, install with `pip install -e ".[dev]"` and run the same commands;
+  `python -m build` leaves `dist/` and `*.egg-info/`, both ignored.
 - **conventions:**
   - English for code, comments, docs, commits, and command-line output.
     Commit subjects are imperative, sentence case, no prefix (as in the

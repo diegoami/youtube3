@@ -11,6 +11,12 @@ A wrapper around youtube Apis:
 I created this package to simplify some typical tasks related to the Youtube API.
 See the `samples` directory for examples.
 
+## INSTALL
+
+```
+pip install youtube3
+```
+
 ## USAGE
 
 Create a youtube object
@@ -49,3 +55,17 @@ The `YoutubeClient` class provides a set of methods for interacting with the You
 -   `iterate_related_videos`: Iterate over related videos to a video using its ID.
 -   `subscribe_channel`: Subscribe to a channel using its ID.
 -   `verify_video`: Verify if a video is available in a specific country using its ID.
+
+## DEVELOPMENT
+
+Python 3.10 or newer.
+
+```
+pip install -e ".[dev]"
+ruff check
+pytest
+```
+
+The tests run offline: they build the client over canned responses
+(`tests/conftest.py`) and never touch a real account. The process for changes
+is in `CLAUDE.md`, the requests in `ROADMAP.md`.

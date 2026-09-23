@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youtube3"
+version = "1.2.5"
+description = "Python Youtube v3 API Wrapper"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Diego Amicabile", email = "diego.amicabile@gmail.com" }]
+keywords = ["youtube", "wrapper", "oauth2", "v3"]
+classifiers = [
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+    "google-api-python-client>=2",
+    # Used by the login until F-2 moves it to google-auth-oauthlib.
+    "oauth2client>=4.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/diegoami/youtube3/"
+
+[tool.setuptools]
+packages = ["youtube3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+xfail_strict = true
+
+[tool.ruff]
+target-version = "py310"
+include = ["youtube3/**/*.py", "samples/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The samples use star imports until F-2 rewrites them.
+"samples/*.py" = ["F403", "F405"]
+# The bare excepts are replaced in F-2.
+"youtube3/youtube_client.py" = ["E722"]

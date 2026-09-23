@@ -1,10 +1,21 @@
-# Ignore Gradle project-specific cache directory
-.gradle
-
-# Ignore Gradle build output directory
-build
-
+# Secrets and personal data: never commit
+client_secrets*.json
 youtube.dat
-.eggs
-.idea
+token.json
+Takeout/
+takeout-*.zip
+.env*
+
+# Generated
+build/
+dist/
+.eggs/
+*.egg-info/
+__pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Editors
+.idea/

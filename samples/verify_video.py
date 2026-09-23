@@ -5,7 +5,7 @@ import os
 if __name__ == "__main__":
     argparser.add_argument('--videoId')
     args = argparser.parse_args()
-    if args.videoId == None:
+    if args.videoId is None:
         print("required argument --videoId <videoId>")
     else:
         youtube_client = YoutubeClient(os.path.join(os.path.dirname(__file__), 'client_secrets.json'))
