@@ -4,6 +4,10 @@ youtube.dat
 token.json
 Takeout/
 takeout-*.zip
+# Exports of the owner's likes and the undo logs of rating runs
+liked*.json
+unliked-*.json
+reliked-*.json
 .env*
 
 # Generated
