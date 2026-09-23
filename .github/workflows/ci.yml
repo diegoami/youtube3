@@ -10,11 +10,16 @@ permissions:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.11", "3.14"]
+        include:
+          # The token file's owner-only ACL is Windows-specific code (#15).
+          - os: windows-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -29,6 +34,7 @@ jobs:
       - name: G3 unit tests
         run: pytest -q
       - name: G4 package
+        if: runner.os == 'Linux'
         run: |
           python -m build --outdir "$RUNNER_TEMP/dist"
           twine check --strict "$RUNNER_TEMP"/dist/*

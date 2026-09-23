@@ -29,7 +29,9 @@ youtube = YoutubeClient("path/to/client_secrets.json")
 
 The first run opens the browser to log in (on WSL or a headless machine, open
 the printed URL yourself). The login is saved as `token.json` next to the
-client secrets, readable by you only, and refreshed on later runs; pass
+client secrets, readable by you only (mode `0600` on Linux and macOS; on
+Windows an ACL that grants your account alone, not the folder's inherited
+permissions), and refreshed on later runs; pass
 `token_file=` to keep it elsewhere. Never commit either file.
 
 The library logs what it changes through the `youtube3` logger; call

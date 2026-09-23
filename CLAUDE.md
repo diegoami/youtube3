@@ -132,8 +132,9 @@ uploading to PyPI is the owner's, always.
   | G4 package | `python -m build`, `twine check --strict`, install the wheel in a fresh venv and `import youtube3` outside the checkout | the metadata, the declared dependencies resolve, and the package imports from an install | every PR, CI | 1 | deterministic given the package index; a network error is re-run once and recorded |
   | G5 live | the affected `samples/*.py` against the owner's account | real API behaviour: OAuth, quota, what the owner would see on YouTube | by the owner, before a milestone tag whose changes touch an API call — it writes to a real account | 1 | a live service: a failure is reproduced once before it is believed |
 
-  CI (`.github/workflows/ci.yml`) runs G1–G4 on Python 3.11 and 3.14 for
-  every pull request and every push to `master`; a red CI does not merge.
+  CI (`.github/workflows/ci.yml`) runs G1–G4 on Ubuntu with Python 3.11 and
+  3.14, and G1–G3 on Windows with 3.14 (the token file's ACL, #15), for every
+  pull request and every push to `master`; a red CI does not merge.
   Locally, install with `pip install -e ".[dev]"` and run the same commands;
   `python -m build` leaves `dist/` and `*.egg-info/`, both ignored.
 - **conventions:**

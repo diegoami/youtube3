@@ -1,5 +1,7 @@
 import json
+import os
 import stat
+import subprocess
 
 import pytest
 from google.auth.exceptions import RefreshError
@@ -61,8 +63,16 @@ def login(monkeypatch, tmp_path):
     return run
 
 
-def mode(path):
-    return stat.S_IMODE(path.stat().st_mode)
+def owner_only(path):
+    """True when only the current user can open path, by the platform's own rules."""
+    if os.name != "nt":
+        return stat.S_IMODE(path.stat().st_mode) == 0o600
+    listing = subprocess.run(
+        ["icacls", str(path)], capture_output=True, text=True, errors="replace", check=True
+    ).stdout
+    # "<path> DOMAIN\user:(F)", one entry per line, then a blank line and a summary.
+    entries = listing.split("\n\n")[0].replace(str(path), "", 1).split()
+    return [e.lower() for e in entries] == [f"{auth.windows_user()}:(F)".lower()]
 
 
 def test_a_valid_saved_token_is_used_without_a_login(login):
@@ -82,7 +92,7 @@ def test_an_expired_token_is_refreshed_and_saved_for_the_owner_only(login):
     assert credentials is saved and saved.refreshed
     assert FakeFlow.runs == []
     assert token.read_text() == FRESH_JSON
-    assert mode(token) == 0o600
+    assert owner_only(token)
 
 
 def test_without_a_token_the_browser_flow_runs_and_the_token_is_saved(login, tmp_path):
@@ -92,7 +102,7 @@ def test_without_a_token_the_browser_flow_runs_and_the_token_is_saved(login, tmp
     assert secrets_file == str(tmp_path / "my_secrets.json")
     assert kwargs == {"port": 0}
     assert token.read_text() == credentials.to_json()
-    assert mode(token) == 0o600
+    assert owner_only(token)
 
 
 def test_a_token_that_cannot_be_refreshed_falls_back_to_the_browser_flow(login):
@@ -119,7 +129,7 @@ def test_a_token_file_readable_by_others_is_tightened(login, tmp_path):
 
     login(FakeCredentials(valid=False, expired=True))
 
-    assert mode(token) == 0o600
+    assert owner_only(token)
 
 
 def test_no_token_reaches_the_logs_or_the_terminal(login, caplog, capsys):
@@ -160,3 +170,56 @@ def test_an_explicit_token_file_is_used(monkeypatch, tmp_path):
     YoutubeClient("client_secrets.json", token_file=tmp_path / "mine.json")
 
     assert calls == [tmp_path / "mine.json"]
+
+
+@pytest.fixture
+def windows(monkeypatch):
+    """Take the Windows branch on any OS, recording each icacls call."""
+    calls = []
+
+    def run(args, **kwargs):
+        target = args[1]
+        calls.append({"args": args, "kwargs": kwargs, "content": open(target).read()})
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(auth, "WINDOWS", True)
+    monkeypatch.setattr(auth.subprocess, "run", run)
+    monkeypatch.setenv("USERDOMAIN", "PC")
+    monkeypatch.setenv("USERNAME", "diego")
+    return calls
+
+
+def test_on_windows_the_token_file_is_cut_off_from_its_folder_before_the_token_is_written(
+    windows, tmp_path
+):
+    token = tmp_path / "token.json"
+    token.write_text("an earlier token")
+
+    auth.save_credentials(FakeCredentials(), token)
+
+    [call] = windows
+    assert call["args"] == ["icacls", str(token), "/inheritance:r", "/grant:r", "PC\\diego:F"]
+    assert call["kwargs"]["check"] is True
+    assert call["content"] == ""
+    assert token.read_text() == TOKEN_JSON
+
+
+def test_on_windows_a_failed_icacls_leaves_no_token_on_disk(monkeypatch, tmp_path):
+    def fail(args, **kwargs):
+        raise subprocess.CalledProcessError(5, args)
+
+    monkeypatch.setattr(auth, "WINDOWS", True)
+    monkeypatch.setattr(auth.subprocess, "run", fail)
+    token = tmp_path / "token.json"
+
+    with pytest.raises(subprocess.CalledProcessError):
+        auth.save_credentials(FakeCredentials(), token)
+
+    assert "SECRET" not in token.read_text()
+
+
+def test_the_windows_user_without_a_domain_is_the_user_name(monkeypatch):
+    monkeypatch.delenv("USERDOMAIN", raising=False)
+    monkeypatch.setenv("USERNAME", "diego")
+
+    assert auth.windows_user() == "diego"

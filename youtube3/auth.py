@@ -1,5 +1,7 @@
+import getpass
 import logging
 import os
+import subprocess
 from pathlib import Path
 
 from google.auth.exceptions import RefreshError
@@ -8,6 +10,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
+WINDOWS = os.name == "nt"
 
 logger = logging.getLogger("youtube3")
 
@@ -47,8 +50,31 @@ def load_credentials(client_secrets_file, token_file):
 
 def save_credentials(credentials, token_path):
     token_path.parent.mkdir(parents=True, exist_ok=True)
+    # Empty the file and restrict it before the token is written into it.
     descriptor = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as token:
+    os.close(descriptor)
+    restrict_to_owner(token_path)
+    with open(token_path, "w", encoding="utf-8") as token:
         token.write(credentials.to_json())
-    # O_CREAT's mode does not apply to a file that already existed.
-    os.chmod(token_path, 0o600)
+
+
+def restrict_to_owner(path):
+    """Make path readable and writable by the current user only."""
+    if not WINDOWS:
+        # O_CREAT's mode does not apply to a file that already existed.
+        os.chmod(path, 0o600)
+        return
+    # On Windows chmod only sets the read-only flag, and a new file inherits
+    # its folder's ACL, which can let other accounts read it. Drop the
+    # inherited entries and grant the current user alone.
+    subprocess.run(
+        ["icacls", str(path), "/inheritance:r", "/grant:r", f"{windows_user()}:F"],
+        check=True,
+        capture_output=True,
+    )
+
+
+def windows_user():
+    domain = os.environ.get("USERDOMAIN")
+    user = os.environ.get("USERNAME") or getpass.getuser()
+    return f"{domain}\\{user}" if domain else user
