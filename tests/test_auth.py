@@ -245,3 +245,18 @@ def test_a_failed_restriction_keeps_the_previous_token(monkeypatch, tmp_path):
 
     assert token.read_text() == TOKEN_JSON
     assert [p.name for p in tmp_path.iterdir()] == ["token.json"]
+
+
+@pytest.mark.parametrize("content", ["", '{"token": "SECRET-ACCESS", "refr', "{}"])
+def test_an_unreadable_token_file_falls_back_to_the_browser_flow(login, tmp_path, content, caplog):
+    # Found by the v2.2.0 review: v2.1.0 could leave an empty token.json.
+    FakeFlow.runs = []
+    token = tmp_path / "token.json"
+    token.write_text(content)
+
+    with caplog.at_level("INFO"):
+        credentials, _ = login()
+
+    assert len(FakeFlow.runs) == 1
+    assert token.read_text() == credentials.to_json()
+    assert "SECRET" not in caplog.text
