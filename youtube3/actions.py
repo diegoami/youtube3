@@ -26,9 +26,15 @@ def _skipping(items, skip, key, why):
     return kept, {item[key]: why for item in items if item[key] in skip}
 
 
-def like_watched(client, videos, *, liked_ids=(), apply=False, limit=DEFAULT_LIMIT):
-    """Like watched videos, skipping those already liked (from a likes export)."""
-    kept, skipped = _skipping(videos, set(liked_ids), "video_id", "already liked")
+def like_watched(client, videos, *, apply=False, limit=DEFAULT_LIMIT):
+    """Like watched videos, skipping those already liked.
+
+    The current likes are read from YouTube first (1 unit per 50), never from
+    an export that may be stale: a video liked before the run must not be
+    recorded as liked by it, or undo would remove the older like.
+    """
+    liked_ids = {video["video_id"] for video in client.iterate_liked_videos()}
+    kept, skipped = _skipping(videos, liked_ids, "video_id", "already liked")
 
     def like(video):
         client.youtube.videos().rate(id=video["video_id"], rating="like").execute()
@@ -146,18 +152,31 @@ def load_log(path):
         return json.load(log)
 
 
-def undo_actions(client, log, *, apply=False, limit=DEFAULT_LIMIT):
+def _already_gone(call):
+    """Run a delete; one that finds nothing (404) was undone before, by a stopped run."""
+    try:
+        call()
+    except HttpError as error:
+        if error.resp.status != 404:
+            raise
+
+
+def undo_actions(client, log, *, apply=False, limit=None):
     """Reverse an applied run from its log; a dry run unless apply is True.
 
     like: rate the videos "none". playlist: delete the playlist the run
     created, or else the items it added. subscribe: delete the subscriptions.
+    The whole log is undone unless a limit is given, and an undo stopped at
+    the quota can be run again: what is already gone counts as undone.
     """
     action = log["action"]
+    if limit is None:
+        limit = max(len(log.get("done", [])), 1)
     if action == "playlist" and log.get("new_playlist"):
         playlist = [{"playlist_id": log["playlist_id"]}]
 
         def delete_playlist(item):
-            client.youtube.playlists().delete(id=item["playlist_id"]).execute()
+            _already_gone(client.youtube.playlists().delete(id=item["playlist_id"]).execute)
             logger.info("Deleted playlist %s", item["playlist_id"])
 
         return _run(playlist, delete_playlist, apply=apply, limit=limit, key="playlist_id")
@@ -170,13 +189,13 @@ def undo_actions(client, log, *, apply=False, limit=DEFAULT_LIMIT):
     if action == "playlist":
 
         def remove(item):
-            client.youtube.playlistItems().delete(id=item["created"]).execute()
+            _already_gone(client.youtube.playlistItems().delete(id=item["created"]).execute)
 
         return _run(log["done"], remove, apply=apply, limit=limit)
     if action == "subscribe":
 
         def unsubscribe(item):
-            client.youtube.subscriptions().delete(id=item["created"]).execute()
+            _already_gone(client.youtube.subscriptions().delete(id=item["created"]).execute)
 
         return _run(log["done"], unsubscribe, apply=apply, limit=limit, key="channel_id")
     raise ValueError(f"not a log of an action run: {action!r}")

@@ -184,6 +184,8 @@ def _run(videos, act, *, apply, limit, key="video_id"):
     other errors are reported in failed and the run goes on. Acting twice on
     a video changes nothing, so a stopped run can be repeated.
     """
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
     unique = {}
     for video in videos:
         unique.setdefault(video[key], video)

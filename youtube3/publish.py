@@ -82,6 +82,8 @@ def image_type_and_size(path):
     with open(path, "rb") as image:
         head = image.read(24)
         if head[:8] == b"\x89PNG\r\n\x1a\n" and head[12:16] == b"IHDR":
+            if len(head) < 24:  # cut inside the header
+                return "image/png", None, None
             width, height = struct.unpack(">II", head[16:24])
             return "image/png", width, height
         if head[:3] == b"\xff\xd8\xff":

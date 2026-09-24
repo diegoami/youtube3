@@ -98,24 +98,33 @@ def test_channels_are_ranked_by_watches():
 # Like
 
 
-def test_a_like_dry_run_sends_nothing_and_skips_what_is_liked(fake):
-    yt = fake()
-    videos = history.watched_videos(HISTORY)
+def liked_page(*video_ids):
+    return {
+        "items": [
+            {"id": f"item-{v}", "snippet": {"title": "t", "resourceId": {"videoId": v}, "videoOwnerChannelId": "UC1"}, "contentDetails": {"videoId": v}}
+            for v in video_ids
+        ]
+    }
 
-    result = actions.like_watched(yt.client, videos, liked_ids={"b"})
 
-    assert yt.requests == []
+def test_a_like_dry_run_only_reads_the_likes_and_skips_them(fake):
+    yt = fake(liked_page("b"))
+
+    result = actions.like_watched(yt.client, history.watched_videos(HISTORY))
+
+    [read] = yt.requests
+    assert (read.method, read.path, read.params["playlistId"]) == ("GET", "playlistItems", "LL")
     assert result["planned"] == ["a", "c"]
     assert result["skipped"] == {"b": "already liked"}
     assert result["cost"] == 100
 
 
 def test_like_rates_the_videos_like(fake):
-    yt = fake((204, None), (204, None))
+    yt = fake(liked_page("b"), (204, None), (204, None))
 
-    result = actions.like_watched(yt.client, history.watched_videos(HISTORY), liked_ids={"b"}, apply=True)
+    result = actions.like_watched(yt.client, history.watched_videos(HISTORY), apply=True)
 
-    assert [(r.method, r.path, r.params["id"], r.params["rating"]) for r in yt.requests] == [
+    assert [(r.method, r.path, r.params["id"], r.params["rating"]) for r in yt.requests[1:]] == [
         ("POST", "videos/rate", "a", "like"),
         ("POST", "videos/rate", "c", "like"),
     ]
@@ -293,3 +302,45 @@ def test_the_day_bounds_are_exact_at_midnight():
     assert ids(history.select_watched(midnight, watched_after="2026-09-21")) == ["m"]
     assert ids(history.select_watched(midnight, watched_before="2026-09-21")) == []
     assert ids(history.select_watched(midnight, watched_before="2026-09-22")) == ["m"]
+
+
+# From the v2.5.0 review
+
+
+def test_undo_reverses_the_whole_log_whatever_its_size(fake):
+    # #43: an undo stopped at the default 150 and said nothing of the rest.
+    log = {"action": "subscribe", "done": [{"channel_id": f"UC{i}", "created": f"s{i}"} for i in range(200)]}
+
+    result = actions.undo_actions(fake().client, log)
+
+    assert len(result["planned"]) == 200 and result["over_limit"] == []
+
+
+def test_an_undo_repeated_after_a_stop_counts_what_is_already_gone_as_undone(fake):
+    # A stopped undo is run again: the first items are already undone and answer 404.
+    gone = (404, {"error": {"code": 404, "errors": [{"reason": "subscriptionNotFound"}]}})
+    yt = fake(gone, (204, None))
+    log = {"action": "subscribe", "done": [{"channel_id": "UC1", "created": "s1"}, {"channel_id": "UC2", "created": "s2"}]}
+
+    result = actions.undo_actions(yt.client, log, apply=True)
+
+    assert result["done"] == ["UC1", "UC2"] and result["failed"] == {}
+
+
+def test_like_reads_the_current_likes_and_skips_them(fake):
+    # Owner decision on the v2.5.0 review: an already-liked video must never be
+    # rated again, or undo would remove a like older than the run.
+    yt = fake(liked_page("a"), (204, None), (204, None))
+
+    result = actions.like_watched(yt.client, history.watched_videos(HISTORY), apply=True)
+
+    read, *rates = yt.requests
+    assert (read.path, read.params["playlistId"]) == ("playlistItems", "LL")
+    assert [r.params["id"] for r in rates] == ["b", "c"]
+    assert result["skipped"] == {"a": "already liked"}
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_a_limit_below_one_is_refused(fake, limit):
+    with pytest.raises(ValueError):
+        actions.undo_actions(fake().client, {"action": "like", "done": [{"video_id": "a"}]}, limit=limit)

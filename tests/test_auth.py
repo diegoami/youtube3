@@ -247,7 +247,8 @@ def test_a_failed_restriction_keeps_the_previous_token(monkeypatch, tmp_path):
     assert [p.name for p in tmp_path.iterdir()] == ["token.json"]
 
 
-@pytest.mark.parametrize("content", ["", '{"token": "SECRET-ACCESS", "refr', "{}"])
+# #45: JSON that is not an object ("[]", "null", a string) crashed too.
+@pytest.mark.parametrize("content", ["", '{"token": "SECRET-ACCESS", "refr', "{}", "[]", "null", '"x"', "42"])
 def test_an_unreadable_token_file_falls_back_to_the_browser_flow(login, tmp_path, content, caplog):
     # Found by the v2.2.0 review: v2.1.0 could leave an empty token.json.
     FakeFlow.runs = []

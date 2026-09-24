@@ -40,7 +40,8 @@ if __name__ == "__main__":
             print(f"  {field}: {old!r} -> {new!r}")
     if plan["thumbnail"]:
         report = plan["thumbnail"]
-        print(f"  thumbnail: {report['path']} ({report['type']}, {report['width']}x{report['height']})")
+        size = f", {report['width']}x{report['height']}" if report["width"] else ""
+        print(f"  thumbnail: {report['path']} ({report['type'] or 'unknown type'}{size})")
         for warning in report["warnings"]:
             print(f"    warning: {warning}")
     if not plan["changes"] and not plan["thumbnail"]:
