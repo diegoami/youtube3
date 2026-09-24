@@ -9,6 +9,9 @@ liked*.json
 unliked-*.json
 reliked-*.json
 liked*.html
+# The watch history imported from Takeout, and its page
+history*.json
+history*.html
 .env*
 
 # Generated

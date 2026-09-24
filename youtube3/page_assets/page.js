@@ -123,6 +123,11 @@ function init() {
   for (const channel of channelCounts(videos)) {
     controls.channel.append(element("option", { value: channel.id }, `${channel.title} (${channel.count})`));
   }
+  // Links to the other pages: only a sibling file, never another origin.
+  const nav = document.getElementById("links");
+  for (const [text, href] of data.links || []) {
+    if (/^[\w.-]+\.html$/.test(href)) nav.append(element("a", { href }, text));
+  }
 
   function render() {
     const shown = selectVideos(videos, {
@@ -145,5 +150,8 @@ function init() {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { SORTS, byDate, displayed, fold, matchesQuery, selectVideos, channelCounts, day, element, card };
 } else {
-  document.addEventListener("DOMContentLoaded", init);
+  // history.js shares this file's helpers; each page starts only its own view.
+  document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("likes-data")) init();
+  });
 }

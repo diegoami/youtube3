@@ -13,7 +13,7 @@
 | F-3 | "the liked" — "The convenience operations is what I missed" | landed | Proposal #20, PRs #21 and #22. Export the `LL` playlist to JSON, incrementally; bulk unlike through `videos.rate(rating="none")` by channel, date or id, with a dry run. Depends on F-2. |
 | F-4 | "make a landing page with liked" | landed | Proposal #29, PR #30. A static page built from F-3's export: thumbnails, titles, channels, dates, search. Where it is hosted is an open question. Depends on F-3. |
 | F-5 | "help with publishing, such setting a thumbnail" | in review | Proposal #33. One command: thumbnail from a local file, title and description, publish now or schedule (`publishAt`). Uploads stay in Studio (`CLAUDE.md`, decided). Depends on F-2. |
-| F-6 | "modify the history" | requested | **Not possible through the API** (`CLAUDE.md`, decided). The closest in scope: import a Google Takeout export read-only and show it on F-4's page. The owner accepts that reduced scope, or parks the request. |
+| F-6 | "modify the history" | in review | Proposal #37, reshaped by the owner: "we can get an history and get some links or ways to enable user to work on the history". Import a Takeout export read-only, a history page, links to where Google lets it be changed. Acting on history through the API (like, playlist, subscribe) is **F-7**, not yet requested. |
 
 ## Statuses
 

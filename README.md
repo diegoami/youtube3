@@ -127,6 +127,39 @@ The same in Python: `youtube3.publish.plan_publish(client, video_id, ...)`
 returns the plan, and `youtube3.publish.apply_publish(client, plan)` sends
 it.
 
+## WATCH HISTORY
+
+The YouTube API cannot read or change your watch history, but Google Takeout
+can export it. `youtube3.history` imports that export and builds a page from
+it, with links to where Google lets you change it.
+
+1.  Export: https://takeout.google.com/settings/takeout/custom/youtube, keep
+    only **history** under "All YouTube data included", and set **History**
+    to **JSON** under "Multiple formats" (the default, HTML, is refused).
+2.  Import the zip as downloaded; it prints counts only:
+
+    ```
+    python samples/import_history.py --takeout takeout-20260924.zip --out history.json
+    ```
+
+3.  Build the page; with a likes export, the videos you also liked are
+    marked:
+
+    ```
+    python samples/build_history_page.py --from history.json --likes liked.json --out history.html
+    ```
+
+The page groups your history by day, with a search, a channel filter, a date
+range, "watched more than once" and the videos removed since. Each entry
+links to the video, its channel, and **My Activity**, searched for its title,
+where you can delete it. A panel links to YouTube's history page, My Activity,
+the history settings (pause, auto-delete) and Takeout. It draws 200 entries at
+a time, so a history of tens of thousands opens at once. Entries marked "From
+Google Ads" and YouTube Music entries are left out (`--include-ads`,
+`--include-music` keep them). The files are personal data: `history*.json` and
+`history*.html` are ignored by git. When `liked.html` and `history.html` sit
+side by side, each links to the other.
+
 ## YOUTUBECLIENT
 
 The methods of `YoutubeClient`:

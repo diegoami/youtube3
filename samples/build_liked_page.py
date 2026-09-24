@@ -10,5 +10,7 @@ if __name__ == "__main__":
     arguments.add_argument("--title", default="Liked videos")
     args = arguments.parse_args()
 
-    path = page.build_page(args.export, args.out, title=args.title)
+    history_page = args.out.with_name("history.html")
+    links = [("Watch history", history_page.name)] if history_page.exists() else []
+    path = page.build_page(args.export, args.out, title=args.title, links=links)
     print(f"Open {path.resolve().as_uri()} in a browser.")
