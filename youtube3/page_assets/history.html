@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>{{TITLE}}</title>
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<header>
+  <nav id="links" class="links" aria-label="Other pages"></nav>
+  <h1><span>&#9654;</span> {{TITLE}}</h1>
+  <p class="summary"><span id="status"></span> · <span id="span"></span></p>
+  <div class="controls">
+    <input id="query" type="search" placeholder="Search titles and channels" aria-label="Search titles and channels">
+    <select id="channel" aria-label="Channel">
+      <option value="">All channels</option>
+    </select>
+    <label>From <input id="from" type="date"></label>
+    <label>to <input id="to" type="date"></label>
+    <label><input id="rewatched" type="checkbox"> Watched more than once</label>
+    <label><input id="show-removed" type="checkbox"> Show removed videos</label>
+  </div>
+</header>
+<main>
+  <details class="manage">
+    <summary>Manage your history on YouTube</summary>
+    <p>The YouTube API cannot change your history, so these pages are where you do it. Each entry below also has a <em>Find in My Activity</em> link that searches for it there.</p>
+    <ul id="manage-links"></ul>
+  </details>
+  <div id="list" class="history"></div>
+  <p id="empty" class="empty" hidden>No watch matches.</p>
+  <button id="more" class="more" type="button" hidden></button>
+</main>
+<script id="history-data" type="application/json">{{DATA}}</script>
+<script>
+{{JS}}
+</script>
+</body>
+</html>
