@@ -8,6 +8,7 @@ takeout-*.zip
 liked*.json
 unliked-*.json
 reliked-*.json
+liked*.html
 .env*
 
 # Generated
