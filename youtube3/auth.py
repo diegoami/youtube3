@@ -26,7 +26,10 @@ def load_credentials(client_secrets_file, token_file):
     token_path = Path(token_file)
     credentials = None
     if token_path.exists():
-        credentials = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+        try:
+            credentials = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+        except ValueError:  # empty, truncated, or missing fields; never log its contents
+            logger.info("The saved token could not be read; logging in again")
 
     if credentials and credentials.valid:
         return credentials

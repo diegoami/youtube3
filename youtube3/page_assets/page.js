@@ -78,11 +78,14 @@ function element(tag, attributes = {}, text = null) {
   return node;
 }
 
+// Thumbnails come from YouTube's image host only, whatever the data says.
+const THUMBNAIL_HOST = "https://i.ytimg.com/";
+
 function card(video) {
   const article = element("article", { class: video.available ? "card" : "card unavailable" });
   const watch = `https://www.youtube.com/watch?v=${encodeURIComponent(video.video_id)}`;
   const thumb = element("a", { class: "thumb", href: watch, target: "_blank", rel: "noopener", tabindex: "-1" });
-  if (video.thumbnail) {
+  if (typeof video.thumbnail === "string" && video.thumbnail.startsWith(THUMBNAIL_HOST)) {
     thumb.append(element("img", { src: video.thumbnail, alt: "", loading: "lazy", decoding: "async" }));
   }
   article.append(thumb);
@@ -140,7 +143,7 @@ function init() {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { SORTS, byDate, displayed, fold, matchesQuery, selectVideos, channelCounts, day };
+  module.exports = { SORTS, byDate, displayed, fold, matchesQuery, selectVideos, channelCounts, day, element, card };
 } else {
   document.addEventListener("DOMContentLoaded", init);
 }
