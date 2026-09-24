@@ -315,3 +315,12 @@ def test_the_media_type_comes_from_the_bytes_not_the_name(fake, tmp_path, name):
     yt.client.upload_thumbnail("vid1", str(path))
 
     assert yt.requests[0].headers["content-type"] == "image/png"
+
+
+@pytest.mark.parametrize("length", range(16, 24))
+def test_a_truncated_png_is_reported_not_a_crash(tmp_path, length):
+    # #44: a PNG cut inside its IHDR raised struct.error.
+    path = tmp_path / "t.png"
+    path.write_bytes(png(tmp_path / "full.png", 1280, 720).read_bytes()[:length])
+
+    assert publish.check_thumbnail(path)["errors"] == ["the image size could not be read"]

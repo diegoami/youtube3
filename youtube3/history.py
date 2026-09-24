@@ -30,11 +30,12 @@ def _looks_like_watch_history(entries):
     """A Takeout activity list whose links are mostly videos, not searches."""
     if not isinstance(entries, list) or not entries:
         return False
-    sample = [e for e in entries[:200] if isinstance(e, dict)]
-    if not sample or not all("time" in e and "header" in e for e in sample):
+    # The whole file, not a sample: its first entries may all be searches.
+    activities = [e for e in entries if isinstance(e, dict)]
+    if not activities or not all("time" in e and "header" in e for e in activities):
         return False
-    watched = sum("watch?v=" in (e.get("titleUrl") or "") for e in sample)
-    searched = sum("search_query=" in (e.get("titleUrl") or "") for e in sample)
+    watched = sum("watch?v=" in (e.get("titleUrl") or "") for e in activities)
+    searched = sum("search_query=" in (e.get("titleUrl") or "") for e in activities)
     return watched > searched
 
 

@@ -28,7 +28,9 @@ def load_credentials(client_secrets_file, token_file):
     if token_path.exists():
         try:
             credentials = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-        except ValueError:  # empty, truncated, or missing fields; never log its contents
+        # Empty, truncated, missing fields (ValueError), or JSON that is not an
+        # object such as [] or null (AttributeError); never log its contents.
+        except (ValueError, AttributeError, TypeError):
             logger.info("The saved token could not be read; logging in again")
 
     if credentials and credentials.valid:

@@ -28,7 +28,6 @@ if __name__ == "__main__":
     arguments.add_argument("--watched-before", help="YYYY-MM-DD: last watched before that day")
     arguments.add_argument("--min-views", type=int, help="like/playlist: a video watched at least this often; subscribe: a channel (default 3)")
     arguments.add_argument("--ids", help="comma-separated video ids")
-    arguments.add_argument("--likes", type=Path, help="like: a likes export, to skip what is already liked")
     target = arguments.add_mutually_exclusive_group()
     target.add_argument("--playlist", help="playlist: the id of an existing playlist")
     target.add_argument("--new-playlist", help="playlist: the title of a new one (private unless --privacy)")
@@ -62,8 +61,7 @@ if __name__ == "__main__":
     else:
         items, key = history.select_watched(records, **criteria), "video_id"
         if args.action == "like":
-            liked = {v["video_id"] for v in likes.load_export(args.likes)["videos"]} if args.likes else set()
-            result = actions.like_watched(youtube, items, liked_ids=liked, apply=args.apply, limit=args.limit)
+            result = actions.like_watched(youtube, items, apply=args.apply, limit=args.limit)
         else:
             result = actions.add_to_playlist(
                 youtube, items, playlist_id=args.playlist, new_title=args.new_playlist,

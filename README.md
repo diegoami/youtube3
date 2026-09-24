@@ -166,13 +166,14 @@ The API cannot change the history, but it can act on what is in it. Each
 action shows its plan and cost and changes nothing without `--apply`:
 
 ```
-python samples/act_on_history.py like --min-views 5 --likes liked.json
+python samples/act_on_history.py like --min-views 5
 python samples/act_on_history.py playlist --channel "Some Channel" --new-playlist "From my history"
 python samples/act_on_history.py subscribe --top 10
 ```
 
--   `like` likes the selected videos, skipping those a likes export shows
-    as liked. `playlist` adds them to `--playlist ID`, skipping what is
+-   `like` likes the selected videos, skipping those you already like
+    (read from YouTube at the start of the run, so undo never removes a
+    like older than the run). `playlist` adds them to `--playlist ID`, skipping what is
     there, or to a new private playlist (`--new-playlist TITLE`,
     `--privacy`). `subscribe` subscribes to the channels you watched most
     (at least 3 times, `--min-views`), skipping those you follow.
@@ -183,8 +184,9 @@ python samples/act_on_history.py subscribe --top 10
     `--limit` (150) and stops cleanly at the quota.
 -   An applied run writes `history-<action>-<time>.json`;
     `python samples/undo_history_actions.py --from <that file> --apply`
-    reverses it: unlike, remove what it added (or delete the playlist it
-    created), unsubscribe.
+    reverses all of it: unlike, remove what it added (or delete the playlist
+    it created), unsubscribe. If it stops (the quota), it says how much is
+    left; run it again to finish, since what is already undone is skipped.
 
 In Python: `youtube3.history.select_watched`, `youtube3.history.top_channels`,
 and `youtube3.actions.like_watched`, `add_to_playlist`, `subscribe_to`,
