@@ -117,7 +117,8 @@ python samples/publish_video.py VIDEO_ID --title "My title" --thumbnail thumb.jp
     then; an already public video cannot be scheduled.
 -   The thumbnail must be a PNG or JPEG of at most 2 MB and at least 640 px
     wide; 1280x720 is recommended. Custom thumbnails need a phone-verified
-    channel.
+    channel (https://www.youtube.com/verify): the plan checks this first
+    and refuses the thumbnail, sending nothing, until YouTube says so.
 -   YouTube resets every setting of a part it is sent without, so the
     changes are sent together with the video's current settings: nothing
     else (embeddable, license, made for kids, tags, category) changes.

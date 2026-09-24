@@ -5,7 +5,10 @@ import os
 import struct
 from datetime import datetime, timezone
 
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
+
+from .likes import _reason
 
 logger = logging.getLogger("youtube3")
 
@@ -34,7 +37,11 @@ THUMBNAIL_COST = 50
 
 
 class PublishError(Exception):
-    pass
+    """A plan that cannot be applied, or one applied only in part (done says what went through)."""
+
+    def __init__(self, message, done=()):
+        super().__init__(message)
+        self.done = list(done)
 
 
 def writable(part, fields):
@@ -202,6 +209,15 @@ def plan_publish(
     report = check_thumbnail(thumbnail) if thumbnail is not None else None
     if report:
         errors.extend(f"thumbnail: {error}" for error in report["errors"])
+        # Custom thumbnails need a verified channel, which unlocks long
+        # uploads too: YouTube says "allowed" only once the channel is verified.
+        channels = client.youtube.channels().list(part="status", mine=True).execute().get("items") or [{}]
+        uploads = channels[0].get("status", {}).get("longUploadsStatus")
+        if uploads != "allowed":
+            errors.append(
+                f"thumbnail: custom thumbnails need a verified channel (YouTube reports {uploads!r}): "
+                "https://www.youtube.com/verify"
+            )
     return {
         "video_id": video_id,
         "title": snippet.get("title"),
@@ -226,9 +242,15 @@ def apply_publish(client, plan):
         logger.info("Updated %s of %s", " and ".join(parts), plan["video_id"])
         done.extend(parts)
     if plan["thumbnail"] is not None:
-        client.youtube.thumbnails().set(
-            videoId=plan["video_id"], media_body=thumbnail_upload(plan["thumbnail"]["path"])
-        ).execute()
+        try:
+            client.youtube.thumbnails().set(
+                videoId=plan["video_id"], media_body=thumbnail_upload(plan["thumbnail"]["path"])
+            ).execute()
+        except HttpError as error:
+            applied = " and ".join(done) or "nothing"
+            raise PublishError(
+                f"{applied} applied; the thumbnail was refused ({_reason(error)}): {error.reason}", done=done
+            ) from None
         logger.info("Set the thumbnail of %s", plan["video_id"])
         done.append("thumbnail")
     return done
