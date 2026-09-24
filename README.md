@@ -95,6 +95,34 @@ deleted and private videos. Everything is inside the one file except the
 thumbnails, which load from YouTube. It is personal data too:
 `liked*.html` is ignored by git.
 
+## PUBLISHING
+
+Upload the video in YouTube Studio (videos uploaded through an unaudited API
+project are locked private), then set everything else in one command:
+
+```
+python samples/publish_video.py VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00
+python samples/publish_video.py VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00 --apply
+```
+
+-   Without `--apply` it only reads the video and shows each change
+    (old -> new), the thumbnail check and the quota cost.
+-   `--title`, `--description` or `--description-file`, `--tags a,b`,
+    `--private`/`--unlisted`/`--public`, and `--schedule WHEN` (ISO 8601;
+    local time without an offset). A scheduled video stays private until
+    then; an already public video cannot be scheduled.
+-   The thumbnail must be a PNG or JPEG of at most 2 MB and at least 640 px
+    wide; 1280x720 is recommended. Custom thumbnails need a phone-verified
+    channel.
+-   YouTube resets every setting of a part it is sent without, so the
+    changes are sent together with the video's current settings: nothing
+    else (embeddable, license, made for kids, tags, category) changes.
+-   Quota: reading 1 unit, updating 50, setting the thumbnail 50.
+
+The same in Python: `youtube3.publish.plan_publish(client, video_id, ...)`
+returns the plan, and `youtube3.publish.apply_publish(client, plan)` sends
+it.
+
 ## YOUTUBECLIENT
 
 The methods of `YoutubeClient`:
@@ -103,13 +131,13 @@ The methods of `YoutubeClient`:
 -   `list_channels`: Retrieve information about YouTube channels using their IDs.
 -   `like_video`: Like a video by providing its ID.
 -   `update_snippet`: Update the snippet information of a video using its ID and the new snippet.
--   `update_status`: Set a video's privacy to private, unlisted or public.
+-   `update_status`: Set a video's privacy to private, unlisted or public, keeping its other status settings.
 -   `get_channel_snippet`: Retrieve the snippet information of a channel using its ID.
 -   `get_channel`: Retrieve information about a channel using its ID.
 -   `get_channel_name`: Retrieve the title of a channel using its ID.
 -   `get_video`: Retrieve information about a video using its ID.
 -   `get_video_content_details`: Retrieve the content details of a video using its ID.
--   `upload_thumbnail`: Set a video's custom thumbnail from a local image file (max 2 MB; the channel must be verified).
+-   `upload_thumbnail`: Set a video's custom thumbnail from a local PNG or JPEG file (max 2 MB; the channel must be verified); `youtube3.publish.check_thumbnail(path)` checks one first.
 -   `get_video_snippet`: Retrieve the snippet information of a video using its ID.
 -   `get_channel_id`: Retrieve the ID of a channel that a video belongs to using the video's ID.
 -   `get_subscriptions_channel_ids`: Retrieve one page of the IDs and titles of the channels you are subscribed to.

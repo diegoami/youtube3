@@ -11,12 +11,18 @@ from youtube3 import YoutubeClient
 class Recorded:
     """One request the client sent, parsed for assertions."""
 
-    def __init__(self, uri, method, body):
+    def __init__(self, uri, method, body, headers):
         parsed = urlparse(uri)
         self.method = method
-        self.path = parsed.path.removeprefix("/youtube/v3/")
+        # Uploads go to /upload/youtube/v3/...
+        self.path = parsed.path.removeprefix("/upload").removeprefix("/youtube/v3/")
         self.params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
-        self.body = json.loads(body) if body else None
+        self.headers = headers
+        self.raw = body
+        try:
+            self.body = json.loads(body) if body else None
+        except (ValueError, UnicodeDecodeError):
+            self.body = None  # a media upload
 
     def __repr__(self):
         return f"<{self.method} {self.path} {self.params}>"
@@ -41,7 +47,7 @@ class FakeYoutube:
 
     @property
     def requests(self):
-        return [Recorded(uri, method, body) for uri, method, body, _ in self.http.request_sequence]
+        return [Recorded(uri, method, body, headers) for uri, method, body, headers in self.http.request_sequence]
 
 
 @pytest.fixture
