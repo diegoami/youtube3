@@ -185,8 +185,9 @@ python samples/act_on_history.py subscribe --top 10
 -   An applied run writes `history-<action>-<time>.json`;
     `python samples/undo_history_actions.py --from <that file> --apply`
     reverses all of it: unlike, remove what it added (or delete the playlist
-    it created), unsubscribe. If it stops (the quota), it says how much is
-    left; run it again to finish, since what is already undone is skipped.
+    it created), unsubscribe. What it undoes leaves the log, so when it stops
+    (the quota, or `--limit N` to spread a large undo over days) running the
+    same command again carries on with the rest.
 
 In Python: `youtube3.history.select_watched`, `youtube3.history.top_channels`,
 and `youtube3.actions.like_watched`, `add_to_playlist`, `subscribe_to`,

@@ -14,7 +14,7 @@ def show(items, key, verb, result):
         else:
             print(f"  {item['views']:>5} watches  {item_id}  {item['channel_title']}")
     print(f"{len(result['planned'])} to {verb}; {len(result['skipped'])} skipped ({', '.join(sorted(set(result['skipped'].values()))) or 'none'}).")
-    print(f"Quota: {result['cost']} of {likes.DAILY_QUOTA} units a day.")
+    print(f"Quota: {result['cost']} of {likes.DAILY_QUOTA} units a day to write, plus {result.get('read_cost', 0)} spent reading.")
     if result["over_limit"]:
         print(f"{len(result['over_limit'])} more are over --limit; run again tomorrow for them.")
 

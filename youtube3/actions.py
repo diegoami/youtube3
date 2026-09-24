@@ -8,6 +8,7 @@ created so the run can be undone (undo_actions).
 
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +19,11 @@ from .likes import DEFAULT_LIMIT, _reason, _run, write_json_atomically
 logger = logging.getLogger("youtube3")
 
 PLAYLIST_PRIVACY = ("private", "unlisted", "public")
+
+
+def _pages(count):
+    """Quota units to list count items, 50 to a page (1 unit each)."""
+    return max(math.ceil(count / 50), 1)
 
 
 def _skipping(items, skip, key, why):
@@ -41,8 +47,7 @@ def like_watched(client, videos, *, apply=False, limit=DEFAULT_LIMIT):
         logger.info("Liked %s", video["video_id"])
 
     result = _run(kept, like, apply=apply, limit=limit)
-    result["skipped"] = skipped
-    result["created"] = {}
+    result.update(skipped=skipped, created={}, read_cost=_pages(len(liked_ids)))
     return result
 
 
@@ -92,7 +97,13 @@ def add_to_playlist(client, videos, *, playlist_id=None, new_title=None, privacy
     result = _run(kept, insert, apply=apply, limit=limit)
     # A new playlist costs one more insert, when there is anything to add.
     result["cost"] += 50 if new_title and result["planned"] else 0
-    result.update(skipped=skipped, created=created, playlist_id=target["id"], new_playlist=bool(new_title and target["id"]))
+    result.update(
+        skipped=skipped,
+        created=created,
+        playlist_id=target["id"],
+        new_playlist=bool(new_title and target["id"]),
+        read_cost=_pages(len(existing)) if playlist_id else 0,
+    )
     return result
 
 
@@ -106,7 +117,8 @@ def subscribe_to(client, channels, *, apply=False, limit=DEFAULT_LIMIT):
     YouTube's own "subscriptionDuplicate" also counts as skipped. created maps
     each channel id to the subscription made for it.
     """
-    kept, skipped = _skipping(channels, subscribed_channel_ids(client), "channel_id", "already subscribed")
+    subscribed = subscribed_channel_ids(client)
+    kept, skipped = _skipping(channels, subscribed, "channel_id", "already subscribed")
     created = {}
 
     def subscribe(channel):
@@ -124,7 +136,7 @@ def subscribe_to(client, channels, *, apply=False, limit=DEFAULT_LIMIT):
     result = _run(kept, subscribe, apply=apply, limit=limit, key="channel_id")
     # A duplicate is not a success: it did nothing.
     result["done"] = [channel_id for channel_id in result["done"] if channel_id in created]
-    result.update(skipped=skipped, created=created)
+    result.update(skipped=skipped, created=created, read_cost=_pages(len(subscribed)))
     return result
 
 
@@ -183,7 +195,12 @@ def undo_actions(client, log, *, apply=False, limit=None):
     if action == "like":
 
         def unlike(item):
-            client.youtube.videos().rate(id=item["video_id"], rating="none").execute()
+            try:
+                client.youtube.videos().rate(id=item["video_id"], rating="none").execute()
+            except HttpError as error:
+                # A video deleted since the run keeps no like to remove.
+                if _reason(error) != "videoNotFound":
+                    raise
 
         return _run(log["done"], unlike, apply=apply, limit=limit)
     if action == "playlist":
@@ -199,3 +216,22 @@ def undo_actions(client, log, *, apply=False, limit=None):
 
         return _run(log["done"], unsubscribe, apply=apply, limit=limit, key="channel_id")
     raise ValueError(f"not a log of an action run: {action!r}")
+
+
+def mark_undone(path, result):
+    """Move what an applied undo reversed from the log's done to its undone.
+
+    So the same undo, run again (with --limit, or after a stop), carries on
+    with what is left instead of starting over.
+    """
+    log = load_log(path)
+    if log["action"] == "playlist" and log.get("new_playlist"):
+        if log["playlist_id"] in result["done"]:
+            log["undone"] = log.get("undone", []) + log["done"]
+            log["done"], log["playlist_deleted"] = [], True
+    else:
+        key = "channel_id" if log["action"] == "subscribe" else "video_id"
+        undone = set(result["done"])
+        log["undone"] = log.get("undone", []) + [item for item in log["done"] if item[key] in undone]
+        log["done"] = [item for item in log["done"] if item[key] not in undone]
+    write_json_atomically(path, log)

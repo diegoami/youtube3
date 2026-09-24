@@ -344,3 +344,51 @@ def test_like_reads_the_current_likes_and_skips_them(fake):
 def test_a_limit_below_one_is_refused(fake, limit):
     with pytest.raises(ValueError):
         actions.undo_actions(fake().client, {"action": "like", "done": [{"video_id": "a"}]}, limit=limit)
+
+
+# From the v2.5.0 review, round 2
+
+
+def test_a_limited_undo_run_again_carries_on_where_it_stopped(fake, tmp_path):
+    # #47: with --limit, running the same undo again re-planned the same first items.
+    path = tmp_path / "history-subscribe-20260924-120000.json"
+    log = {"action": "subscribe", "done": [{"channel_id": f"UC{i}", "created": f"s{i}"} for i in range(5)]}
+    path.write_text(json.dumps(log))
+
+    first = actions.undo_actions(fake(*[(204, None)] * 2).client, actions.load_log(path), apply=True, limit=2)
+    actions.mark_undone(path, first)
+    second = actions.undo_actions(fake(*[(204, None)] * 2).client, actions.load_log(path), apply=True, limit=2)
+
+    assert first["done"] == ["UC0", "UC1"]
+    assert second["done"] == ["UC2", "UC3"]
+    saved = actions.load_log(path)
+    assert [item["channel_id"] for item in saved["undone"]] == ["UC0", "UC1"]
+    assert [item["channel_id"] for item in saved["done"]] == ["UC2", "UC3", "UC4"]
+
+
+def test_marking_a_created_playlist_undone_empties_the_log(tmp_path):
+    path = tmp_path / "history-playlist-20260924-120000.json"
+    path.write_text(json.dumps({"action": "playlist", "playlist_id": "PLnew", "new_playlist": True, "done": [{"video_id": "a", "created": "i1"}]}))
+
+    actions.mark_undone(path, {"done": ["PLnew"]})
+
+    saved = actions.load_log(path)
+    assert saved["done"] == [] and saved["playlist_deleted"] is True
+
+
+def test_undoing_a_like_whose_video_is_gone_counts_as_undone(fake):
+    # Nit: a video deleted after the run answers videoNotFound for ever.
+    gone = (404, {"error": {"code": 404, "errors": [{"reason": "videoNotFound"}]}})
+
+    result = actions.undo_actions(fake(gone).client, {"action": "like", "done": [{"video_id": "gone"}]}, apply=True)
+
+    assert result["done"] == ["gone"] and result["failed"] == {}
+
+
+def test_the_reads_a_run_makes_are_reported_apart_from_the_writes(fake):
+    # Nit: the quota line showed the writes only.
+    yt = fake(liked_page("b"))
+
+    result = actions.like_watched(yt.client, history.watched_videos(HISTORY))
+
+    assert (result["cost"], result["read_cost"]) == (100, 1)
