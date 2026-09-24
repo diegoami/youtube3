@@ -9,6 +9,11 @@ liked*.json
 unliked-*.json
 reliked-*.json
 liked*.html
+# The watch history imported from Takeout, and its page
+history*.json
+history*.html
+# ...but never the package's own page templates.
+!youtube3/page_assets/*
 .env*
 
 # Generated
