@@ -177,8 +177,8 @@ def _reason(error):
         return str(error.resp.status)
 
 
-def _run(videos, act, *, apply, limit):
-    """Apply act to each video, once, at most limit of them, unless a dry run.
+def _run(videos, act, *, apply, limit, key="video_id"):
+    """Apply act to each video (or item, by key), once, at most limit of them, unless a dry run.
 
     The run stops at the first quota error, leaving the rest in not_done;
     other errors are reported in failed and the run goes on. Acting twice on
@@ -186,12 +186,12 @@ def _run(videos, act, *, apply, limit):
     """
     unique = {}
     for video in videos:
-        unique.setdefault(video["video_id"], video)
+        unique.setdefault(video[key], video)
     ordered = list(unique.values())
-    planned = [video["video_id"] for video in ordered[:limit]]
+    planned = [video[key] for video in ordered[:limit]]
     result = {
         "planned": planned,
-        "over_limit": [video["video_id"] for video in ordered[limit:]],
+        "over_limit": [video[key] for video in ordered[limit:]],
         "done": [],
         "not_done": [],
         "failed": {},
@@ -201,7 +201,7 @@ def _run(videos, act, *, apply, limit):
     if not apply:
         return result
     for position, video in enumerate(ordered[:limit]):
-        video_id = video["video_id"]
+        video_id = video[key]
         try:
             act(video)
         except CannotRate as error:

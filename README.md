@@ -160,6 +160,36 @@ Google Ads" and YouTube Music entries are left out (`--include-ads`,
 `history*.html` are ignored by git. When `liked.html` and `history.html` sit
 side by side, each links to the other.
 
+### Acting on the history
+
+The API cannot change the history, but it can act on what is in it. Each
+action shows its plan and cost and changes nothing without `--apply`:
+
+```
+python samples/act_on_history.py like --min-views 5 --likes liked.json
+python samples/act_on_history.py playlist --channel "Some Channel" --new-playlist "From my history"
+python samples/act_on_history.py subscribe --top 10
+```
+
+-   `like` likes the selected videos, skipping those a likes export shows
+    as liked. `playlist` adds them to `--playlist ID`, skipping what is
+    there, or to a new private playlist (`--new-playlist TITLE`,
+    `--privacy`). `subscribe` subscribes to the channels you watched most
+    (at least 3 times, `--min-views`), skipping those you follow.
+-   Select with `--channel` (id or title), `--watched-after DATE` (that day
+    included), `--watched-before DATE` (that day excluded), `--min-views N`
+    and `--ids a,b`. `like` and `playlist` refuse to run with no selection.
+-   Each write costs 50 quota units of 10,000 a day; a run does at most
+    `--limit` (150) and stops cleanly at the quota.
+-   An applied run writes `history-<action>-<time>.json`;
+    `python samples/undo_history_actions.py --from <that file> --apply`
+    reverses it: unlike, remove what it added (or delete the playlist it
+    created), unsubscribe.
+
+In Python: `youtube3.history.select_watched`, `youtube3.history.top_channels`,
+and `youtube3.actions.like_watched`, `add_to_playlist`, `subscribe_to`,
+`write_action_log` and `undo_actions`.
+
 ## YOUTUBECLIENT
 
 The methods of `YoutubeClient`:

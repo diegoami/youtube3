@@ -147,3 +147,83 @@ def import_history(source, path, *, include_ads=False, include_music=False, now=
     )
     logger.info("Imported %d watches", len(kept))
     return {**summary, "left_out": {"ads": 0 if include_ads else ads, "music": 0 if include_music else music}}
+
+
+# Selecting what to act on (youtube3.actions)
+
+
+def watched_videos(videos):
+    """Each watched video once, most recently watched first, with its views.
+
+    Removed videos are left out: they have no id to act on.
+    """
+    seen = {}
+    for record in sorted(videos, key=lambda r: r["watched_at"] or "", reverse=True):
+        if not record["video_id"]:
+            continue
+        video = seen.get(record["video_id"])
+        if video is None:
+            seen[record["video_id"]] = {
+                "video_id": record["video_id"],
+                "title": record["title"],
+                "channel_id": record["channel_id"],
+                "channel_title": record["channel_title"],
+                "last_watched": record["watched_at"],
+                "first_watched": record["watched_at"],
+                "views": 1,
+            }
+        else:
+            video["views"] += 1
+            video["first_watched"] = record["watched_at"]
+    return list(seen.values())
+
+
+def _day(value):
+    """The start of a day (a date or YYYY-MM-DD) in UTC, as the ISO text history uses."""
+    return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=timezone.utc)
+
+
+def _when(iso):
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")) if iso else None
+
+
+def select_watched(videos, *, channel=None, watched_after=None, watched_before=None, min_views=None, ids=None):
+    """Watched videos matching every criterion given; no criterion matches all.
+
+    channel: an id, or a title in any case. watched_after: last watched on
+    that day or later (UTC). watched_before: last watched before that day
+    began. min_views: watched at least that many times. ids: video ids.
+    """
+    after = _day(watched_after) if watched_after else None
+    before = _day(watched_before) if watched_before else None
+    folded = channel.casefold() if channel else None
+    wanted = set(ids) if ids is not None else None
+    selected = []
+    for video in watched_videos(videos):
+        last = _when(video["last_watched"])
+        if folded and folded not in ((video["channel_id"] or "").casefold(), (video["channel_title"] or "").casefold()):
+            continue
+        if after and (last is None or last < after):
+            continue
+        if before and (last is None or last >= before):
+            continue
+        if min_views and video["views"] < min_views:
+            continue
+        if wanted is not None and video["video_id"] not in wanted:
+            continue
+        selected.append(video)
+    return selected
+
+
+def top_channels(videos, *, min_views=1):
+    """Channels by how many watches they have, most first, then by title."""
+    counts = {}
+    for record in videos:
+        if not record["channel_id"]:
+            continue
+        entry = counts.setdefault(
+            record["channel_id"], {"channel_id": record["channel_id"], "channel_title": record["channel_title"], "views": 0}
+        )
+        entry["views"] += 1
+    ranked = sorted(counts.values(), key=lambda c: (-c["views"], (c["channel_title"] or "").casefold()))
+    return [channel for channel in ranked if channel["views"] >= min_views]
