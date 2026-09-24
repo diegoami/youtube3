@@ -39,6 +39,11 @@ def video(snippet=None, status=None):
     return {"items": [{"id": "vid1", "snippet": snippet or SNIPPET, "status": status or STATUS}]}
 
 
+def channel(long_uploads="allowed"):
+    """The channel's status: custom thumbnails need it "allowed" (a verified channel)."""
+    return {"items": [{"status": {"longUploadsStatus": long_uploads}}]}
+
+
 def png(path, width, height, padding=0):
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     path.write_bytes(b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + ihdr + b"\0" * (4 + padding))
@@ -250,7 +255,7 @@ def test_an_unknown_video_is_refused(fake):
 
 
 def test_a_bad_thumbnail_is_an_error_of_the_plan(fake, tmp_path):
-    plan = publish.plan_publish(fake(video()).client, "vid1", thumbnail=tmp_path / "none.png", now=NOW)
+    plan = publish.plan_publish(fake(video(), channel()).client, "vid1", thumbnail=tmp_path / "none.png", now=NOW)
 
     assert plan["errors"] == ["thumbnail: no such file"]
 
@@ -259,14 +264,14 @@ def test_a_bad_thumbnail_is_an_error_of_the_plan(fake, tmp_path):
 
 
 def test_apply_sends_one_update_with_whole_parts_then_the_thumbnail(fake):
-    yt = fake(video(), {"id": "vid1"}, {"items": []})
+    yt = fake(video(), channel(), {"id": "vid1"}, {"items": []})
     plan = publish.plan_publish(
         yt.client, "vid1", title="New title", thumbnail=REAL_JPEG, publish_at="2026-10-01T16:00:00Z", now=NOW
     )
 
     done = publish.apply_publish(yt.client, plan)
 
-    _, update, thumbnail = yt.requests
+    _, _, update, thumbnail = yt.requests
     assert (update.method, update.path, update.params["part"]) == ("PUT", "videos", "snippet,status")
     assert update.body["id"] == "vid1"
     assert update.body["snippet"]["tags"] == ["one", "two"]
@@ -279,11 +284,11 @@ def test_apply_sends_one_update_with_whole_parts_then_the_thumbnail(fake):
 
 
 def test_a_thumbnail_alone_sends_no_update(fake):
-    yt = fake(video(), {"items": []})
+    yt = fake(video(), channel(), {"items": []})
     plan = publish.plan_publish(yt.client, "vid1", thumbnail=REAL_JPEG, now=NOW)
 
     assert publish.apply_publish(yt.client, plan) == ["thumbnail"]
-    assert [r.path for r in yt.requests] == ["videos", "thumbnails/set"]
+    assert [r.path for r in yt.requests] == ["videos", "channels", "thumbnails/set"]
     assert plan["cost"] == 50
 
 
@@ -324,3 +329,39 @@ def test_a_truncated_png_is_reported_not_a_crash(tmp_path, length):
     path.write_bytes(png(tmp_path / "full.png", 1280, 720).read_bytes()[:length])
 
     assert publish.check_thumbnail(path)["errors"] == ["the image size could not be read"]
+
+
+# From G5 of milestone v2.5.0 (#49)
+
+
+@pytest.mark.parametrize("status", ["eligible", "disallowed", None])
+def test_a_thumbnail_on_an_unverified_channel_is_refused_before_any_write(fake, status):
+    yt = fake(video(), channel(status))
+
+    plan = publish.plan_publish(yt.client, "vid1", title="New title", thumbnail=REAL_JPEG, now=NOW)
+
+    assert any("verified channel" in error and "youtube.com/verify" in error for error in plan["errors"])
+    with pytest.raises(publish.PublishError):
+        publish.apply_publish(yt.client, plan)
+    assert [r.method for r in yt.requests] == ["GET", "GET"]
+    assert yt.requests[1].params == {"part": "status", "mine": "true", "key": "test-key", "alt": "json"}
+
+
+def test_no_thumbnail_means_no_channel_read(fake):
+    yt = fake(video())
+
+    publish.plan_publish(yt.client, "vid1", title="New title", now=NOW)
+
+    assert [r.path for r in yt.requests] == ["videos"]
+
+
+def test_a_thumbnail_refused_after_the_update_says_what_was_done(fake):
+    refused = (403, {"error": {"code": 403, "errors": [{"reason": "forbidden", "message": "no permission"}]}})
+    yt = fake(video(), channel(), {"id": "vid1"}, refused)
+    plan = publish.plan_publish(yt.client, "vid1", title="New title", thumbnail=REAL_JPEG, now=NOW)
+
+    with pytest.raises(publish.PublishError) as refusal:
+        publish.apply_publish(yt.client, plan)
+
+    assert refusal.value.done == ["snippet"]
+    assert "snippet" in str(refusal.value) and "thumbnail" in str(refusal.value) and "forbidden" in str(refusal.value)

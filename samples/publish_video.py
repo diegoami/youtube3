@@ -54,5 +54,8 @@ if __name__ == "__main__":
     if not args.apply:
         print("Dry run: nothing changed. Add --apply to do it.")
     else:
-        done = publish.apply_publish(youtube, plan)
+        try:
+            done = publish.apply_publish(youtube, plan)
+        except publish.PublishError as error:
+            raise SystemExit(f"Error: {error}") from None
         print(f"Done: {', '.join(done) or 'nothing'}.")
