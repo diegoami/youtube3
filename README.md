@@ -79,6 +79,22 @@ python samples/relike_videos.py --from unliked-20260924-120000.json --apply
 
 These files are personal data; `.gitignore` keeps them out of git.
 
+## LANDING PAGE
+
+`youtube3.page` turns an export into one web page of your likes:
+
+```
+python samples/build_liked_page.py --from liked.json --out liked.html
+```
+
+Open the file in any browser; it needs no server. It shows every like as a
+card (thumbnail, title, channel, when you liked it and when it was
+published), with a search over titles and channels that ignores case and
+accents, a channel filter with counts, five sorts, and a switch to show
+deleted and private videos. Everything is inside the one file except the
+thumbnails, which load from YouTube. It is personal data too:
+`liked*.html` is ignored by git.
+
 ## YOUTUBECLIENT
 
 The methods of `YoutubeClient`:
@@ -101,6 +117,9 @@ The methods of `YoutubeClient`:
 -   `iterate_subscriptions_in_channel`: Iterate over all the channels you are subscribed to.
 -   `liked_channel`: Retrieve the ID of the playlist of your liked videos.
 -   `iterate_liked_videos`: Iterate over your liked videos as records (see LIKES), newest like first.
+
+`youtube3.page.build_page(export, path, title="Liked videos")` writes the
+landing page (see LANDING PAGE); `export` is a dict or the path of an export.
 -   `playlist_snippet`: Retrieve the snippet information of a playlist using its ID.
 -   `playlist_name`: Retrieve the title of a playlist using its ID.
 -   `videos_in_playlist`: Retrieve one page (up to 50) of the videos in a playlist.

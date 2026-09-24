@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>{{TITLE}}</title>
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>&#9654;</span> {{TITLE}}</h1>
+  <p class="summary"><span id="status"></span> · <span id="exported"></span></p>
+  <div class="controls">
+    <input id="query" type="search" placeholder="Search titles and channels" aria-label="Search titles and channels">
+    <select id="channel" aria-label="Channel">
+      <option value="">All channels</option>
+    </select>
+    <select id="sort" aria-label="Sort">
+      <option value="liked-desc">Liked, newest first</option>
+      <option value="liked-asc">Liked, oldest first</option>
+      <option value="published-desc">Published, newest first</option>
+      <option value="published-asc">Published, oldest first</option>
+      <option value="title">Title, A to Z</option>
+    </select>
+    <label><input id="show-unavailable" type="checkbox"> Show unavailable <span id="unavailable-count"></span></label>
+  </div>
+</header>
+<main>
+  <div id="grid" class="grid"></div>
+  <p id="empty" class="empty" hidden>No liked video matches.</p>
+</main>
+<script id="likes-data" type="application/json">{{DATA}}</script>
+<script>
+{{JS}}
+</script>
+</body>
+</html>

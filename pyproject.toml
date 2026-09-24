@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube3"
-version = "2.1.0"
+version = "2.2.0"
 description = "Python Youtube v3 API Wrapper"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,6 +35,9 @@ Homepage = "https://github.com/diegoami/youtube3/"
 
 [tool.setuptools]
 packages = ["youtube3"]
+
+[tool.setuptools.package-data]
+youtube3 = ["page_assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -33,6 +33,11 @@ jobs:
         run: ruff check
       - name: G3 unit tests
         run: pytest -q
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: G3b page logic
+        run: node --test "tests/page/*.test.cjs"
       - name: G4 package
         if: runner.os == 'Linux'
         run: |
@@ -41,3 +46,5 @@ jobs:
           python -m venv "$RUNNER_TEMP/wheel-venv"
           "$RUNNER_TEMP/wheel-venv/bin/pip" install -q "$RUNNER_TEMP"/dist/*.whl
           cd "$RUNNER_TEMP" && wheel-venv/bin/python -c "import youtube3; print(youtube3.YoutubeClient)"
+          # The page's assets must ship in the wheel.
+          wheel-venv/bin/python -c "from youtube3 import page; html = page.page_html({'exported_at': None, 'videos': []}); assert 'function selectVideos' in html and '--accent' in html; print('page assets ok')"
