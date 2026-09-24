@@ -1,0 +1,25 @@
+from pathlib import Path
+
+from _common import client, parser
+
+from youtube3 import actions
+
+if __name__ == "__main__":
+    arguments = parser("Undo a run of act_on_history.py from its log; a dry run unless --apply.")
+    arguments.add_argument("--from", dest="log", type=Path, required=True, help="a history-like/playlist/subscribe-*.json log")
+    arguments.add_argument("--apply", action="store_true", help="really undo it")
+    args = arguments.parse_args()
+
+    log = actions.load_log(args.log)
+    result = actions.undo_actions(client(args), log, apply=args.apply)
+    what = {"like": "unlike", "playlist": "delete from the playlist", "subscribe": "unsubscribe from"}[log["action"]]
+    if log["action"] == "playlist" and log.get("new_playlist"):
+        what = "delete the playlist the run created:"
+    print(f"{len(result['planned'])} to {what} {' '.join(result['planned'])}")
+    print(f"Quota: {result['cost']} units.")
+    if not args.apply:
+        print("Dry run: nothing changed. Add --apply to do it.")
+    else:
+        for item_id, reason in result["failed"].items():
+            print(f"Failed: {item_id} ({reason})")
+        print(f"Undone: {len(result['done'])}.")
