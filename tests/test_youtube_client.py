@@ -79,16 +79,46 @@ def test_update_snippet_sends_the_id_and_the_snippet(fake):
     assert request.body == {"id": "vid1", "snippet": snippet}
 
 
+CURRENT_STATUS = {
+    "uploadStatus": "processed",
+    "privacyStatus": "private",
+    "license": "creativeCommon",
+    "embeddable": False,
+    "publicStatsViewable": False,
+    "madeForKids": False,
+    "selfDeclaredMadeForKids": False,
+}
+
+
 @pytest.mark.parametrize("status", ["private", "unlisted", "public"])
-def test_update_status_sets_the_privacy(fake, status):
-    yt = fake({"id": "vid1"})
+def test_update_status_sets_the_privacy_and_keeps_the_other_settings(fake, status):
+    # videos.update resets every status field it is sent without (F-5).
+    yt = fake({"items": [{"status": CURRENT_STATUS}]}, {"id": "vid1"})
 
     yt.client.update_status("vid1", status)
 
-    [request] = yt.requests
-    assert (request.method, request.path) == ("PUT", "videos")
-    assert request.params["part"] == "status"
-    assert request.body == {"id": "vid1", "status": {"privacyStatus": status}}
+    read, update = yt.requests
+    assert (read.path, read.params["part"]) == ("videos", "status")
+    assert (update.method, update.path, update.params["part"]) == ("PUT", "videos", "status")
+    assert update.body == {
+        "id": "vid1",
+        "status": {
+            "privacyStatus": status,
+            "license": "creativeCommon",
+            "embeddable": False,
+            "publicStatsViewable": False,
+            "selfDeclaredMadeForKids": False,
+        },
+    }
+
+
+def test_making_a_scheduled_video_public_drops_its_schedule(fake):
+    scheduled = {**CURRENT_STATUS, "publishAt": "2030-01-01T00:00:00Z"}
+    yt = fake({"items": [{"status": scheduled}]}, {"id": "vid1"})
+
+    yt.client.update_status("vid1", "public")
+
+    assert "publishAt" not in yt.requests[1].body["status"]
 
 
 def test_update_status_rejects_an_unknown_privacy_without_calling_the_api(fake):

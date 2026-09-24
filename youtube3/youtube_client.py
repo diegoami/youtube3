@@ -7,6 +7,7 @@ from googleapiclient.errors import HttpError
 from .auth import load_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
+from .publish import WRITABLE_STATUS, thumbnail_upload, writable
 
 logger = logging.getLogger("youtube3")
 
@@ -76,8 +77,8 @@ class YoutubeClient:
         return video_content_details["items"][0]["contentDetails"]
 
     def upload_thumbnail(self, videoId, thumbnailUrl):
-        # media_body is a local file path; F-5 reworks thumbnails.
-        return self.youtube.thumbnails().set(videoId=videoId, media_body=thumbnailUrl).execute()
+        """Set a video's custom thumbnail; thumbnailUrl is the path of a local PNG or JPEG."""
+        return self.youtube.thumbnails().set(videoId=videoId, media_body=thumbnail_upload(thumbnailUrl)).execute()
 
     def get_video_snippet(self, video_id):
         video_info = self.get_video(video_id)
@@ -148,10 +149,14 @@ class YoutubeClient:
         if privacy_status not in ["private", "unlisted", "public"]:
             raise ValueError("privacy_status must be private, unlisted or public")
 
-        self.youtube.videos().update(
-            part="status",
-            body={"id": video_id, "status": {"privacyStatus": privacy_status}},
-        ).execute()
+        # The status part is replaced whole: send the current fields, or YouTube
+        # resets embeddable, license, public stats and made-for-kids.
+        current = self.youtube.videos().list(id=video_id, part="status").execute()["items"][0]["status"]
+        status = writable(current, WRITABLE_STATUS)
+        status["privacyStatus"] = privacy_status
+        if privacy_status != "private":
+            status.pop("publishAt", None)
+        self.youtube.videos().update(part="status", body={"id": video_id, "status": status}).execute()
 
     def iterate_videos_in_playlist(self, playlistId, maxCount=None):
         """Yield the playlist one page at a time; at most maxCount pages when given."""
