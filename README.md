@@ -64,25 +64,12 @@ python samples/profiles.py list
 Then give `--profile NAME` to any sample. It prints **"Signed in as <channel>
 (<id>)"** before doing anything, checks that the saved login still belongs to
 that channel (1 quota unit) and refuses to run otherwise, and names its files
-after the profile: `liked-diego.json`, `liked-diego.html`,
-`history-diego.json`, `history-diego.html`, `history-diego-like-*.json`.
+after the profile: `liked-diego.json`, `liked-diego.html`.
 
 -   Logins are kept in `~/.config/youtube3/profiles/` (on Windows
     `%APPDATA%\youtube3\profiles\`), outside any repository, readable by you
     only.
--   Each brand account has its own watch history: export it from Takeout
-    after switching to that account at the top right of
-    takeout.google.com. `import_history.py --profile NAME` warns when an
-    export does not look like that channel's (few of its likes among the
-    watches).
 -   All channels share one quota: 10,000 units a day for the Cloud project.
-
-For the watch history in one command, with the newest Takeout zip found in
-your Downloads folder:
-
-```
-python samples/history_page.py --profile diego
-```
 
 ## LIKES
 
@@ -165,69 +152,11 @@ it.
 
 ## WATCH HISTORY
 
-The YouTube API cannot read or change your watch history, but Google Takeout
-can export it. `youtube3.history` imports that export and builds a page from
-it, with links to where Google lets you change it.
-
-1.  Export: https://takeout.google.com/settings/takeout/custom/youtube, keep
-    only **history** under "All YouTube data included", and set **History**
-    to **JSON** under "Multiple formats" (the default, HTML, is refused).
-2.  Import the zip as downloaded; it prints counts only:
-
-    ```
-    python samples/import_history.py --takeout takeout-20260924.zip --out history.json
-    ```
-
-3.  Build the page; with a likes export, the videos you also liked are
-    marked:
-
-    ```
-    python samples/build_history_page.py --from history.json --likes liked.json --out history.html
-    ```
-
-The page groups your history by day, with a search, a channel filter, a date
-range, "watched more than once" and the videos removed since. Each entry
-links to the video, its channel, and **My Activity**, searched for its title,
-where you can delete it. A panel links to YouTube's history page, My Activity,
-the history settings (pause, auto-delete) and Takeout. It draws 200 entries at
-a time, so a history of tens of thousands opens at once. Entries marked "From
-Google Ads" and YouTube Music entries are left out (`--include-ads`,
-`--include-music` keep them). The files are personal data: `history*.json` and
-`history*.html` are ignored by git. When `liked.html` and `history.html` sit
-side by side, each links to the other.
-
-### Acting on the history
-
-The API cannot change the history, but it can act on what is in it. Each
-action shows its plan and cost and changes nothing without `--apply`:
-
-```
-python samples/act_on_history.py like --min-views 5
-python samples/act_on_history.py playlist --channel "Some Channel" --new-playlist "From my history"
-python samples/act_on_history.py subscribe --top 10
-```
-
--   `like` likes the selected videos, skipping those you already like
-    (read from YouTube at the start of the run, so undo never removes a
-    like older than the run). `playlist` adds them to `--playlist ID`, skipping what is
-    there, or to a new private playlist (`--new-playlist TITLE`,
-    `--privacy`). `subscribe` subscribes to the channels you watched most
-    (at least 3 times, `--min-views`), skipping those you follow.
--   Select with `--channel` (id or title), `--watched-after DATE` (that day
-    included), `--watched-before DATE` (that day excluded), `--min-views N`
-    and `--ids a,b`. `like` and `playlist` refuse to run with no selection.
--   Each write costs 50 quota units of 10,000 a day; a run does at most
-    `--limit` (150) and stops cleanly at the quota.
--   An applied run writes `history-<action>-<time>.json`;
-    `python samples/undo_history_actions.py --from <that file> --apply`
-    reverses all of it: unlike, remove what it added (or delete the playlist
-    it created), unsubscribe. What it undoes leaves the log, so when it stops
-    (the quota, or `--limit N` to spread a large undo over days) running the
-    same command again carries on with the rest.
-
-In Python: `youtube3.history.select_watched`, `youtube3.history.top_channels`,
-and `youtube3.actions.like_watched`, `add_to_playlist`, `subscribe_to`,
-`write_action_log` and `undo_actions`.
+Not supported. YouTube removed the watch history from the Data API in 2016,
+and the only other source is a Google export (Takeout or the Data
+Portability API), which takes hours and exports whichever account the
+browser has selected, not reliably the channel you meant. See it and delete
+from it on https://myactivity.google.com.
 
 ## YOUTUBECLIENT
 

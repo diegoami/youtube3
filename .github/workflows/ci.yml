@@ -48,4 +48,3 @@ jobs:
           cd "$RUNNER_TEMP" && wheel-venv/bin/python -c "import youtube3; print(youtube3.YoutubeClient)"
           # The page's assets must ship in the wheel.
           wheel-venv/bin/python -c "from youtube3 import page; html = page.page_html({'exported_at': None, 'videos': []}); assert 'function selectVideos' in html and '--accent' in html; print('page assets ok')"
-          wheel-venv/bin/python -c "from youtube3 import page; html = page.history_html({'summary': {}, 'videos': []}); assert 'function initHistory' in html; print('history assets ok')"

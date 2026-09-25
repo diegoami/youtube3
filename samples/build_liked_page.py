@@ -17,7 +17,5 @@ if __name__ == "__main__":
     name = channel_title(args.profile)
     args.title = args.title or (f"Liked videos · {name}" if name else "Liked videos")
 
-    history_page = args.out.with_name(default_path(None, "history", ".html", args.profile).name)
-    links = [("Watch history", history_page.name)] if history_page.exists() else []
-    path = page.build_page(args.export, args.out, title=args.title, links=links)
+    path = page.build_page(args.export, args.out, title=args.title)
     print(f"Open {path.resolve().as_uri()} in a browser.")
