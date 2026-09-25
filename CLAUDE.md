@@ -119,7 +119,8 @@ uploading to PyPI is the owner's, always.
   generated. `.idea/` — editor state.
 - **never read or echo:** `client_secrets*.json` anywhere (the samples expect
   `samples/client_secrets.json`); `youtube.dat` (the oauth2client token
-  store) and `token.json` or any other saved OAuth token; Google Takeout
+  store) and `token.json` or any other saved OAuth token, including the
+  profiles in `~/.config/youtube3/profiles/` (F-8); Google Takeout
   exports (`Takeout/`, `takeout-*.zip`) and what is imported from them
   (`history*.json`, `history*.html`): Claude runs the importer, builds the
   page and looks at it only when the owner asks (owner decision on #37,
