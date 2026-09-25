@@ -239,10 +239,22 @@ def test_a_video_whose_title_is_its_own_link_and_has_no_channel_is_unavailable()
     assert record["channel_id"] is None
 
 
-def test_it_is_recognised_whatever_the_language_around_the_link():
+def test_another_language_is_learned_from_the_export_across_three_videos(tmp_path):
+    german = [unavailable(f"gone{i}", f"2026-09-1{i}T00:00:00Z", prefix="Angesehen: ") for i in range(3)]
+    source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, *german])
+
+    history.import_history(source, tmp_path / "h.json", now=NOW)
+
+    saved = json.loads((tmp_path / "h.json").read_text(encoding="utf-8"))["videos"]
+    assert {v["video_id"] for v in saved if v["removed"] and v["video_id"]} == {"gone0", "gone1", "gone2"}
+    assert all(v["title"] is None for v in saved if v["video_id"] in {"gone0", "gone1", "gone2"})
+
+
+def test_a_single_entry_in_an_unknown_phrasing_stays_a_watch():
+    # Ambiguous: it could be a genuine title; keeping a real watch is safer than hiding it.
     record = history.history_record(unavailable("gone2", "2026-09-10T00:00:00Z", prefix="Angesehen: "))
 
-    assert record["removed"] is True and record["title"] is None
+    assert record["removed"] is False
 
 
 def test_a_real_title_that_mentions_a_link_is_not_unavailable():
@@ -312,3 +324,44 @@ def test_a_history_with_few_of_the_likes_looks_like_another_account():
 
 def test_too_few_likes_are_not_judged():
     assert history.likes_overlap([{"video_id": "a"}], ["x", "y"])["another_account"] is False
+
+
+
+# From the v2.5.1 review (#56): a genuine short title with its own link and no channel
+
+
+def genuine(video_id, when, text="Watch {} now"):
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    return {"header": "YouTube", "title": "Watched " + text.format(url), "titleUrl": url, "time": when, "products": ["YouTube"]}
+
+
+def test_a_genuine_short_title_with_its_own_link_is_a_watch():
+    record = history.history_record(genuine("real", "2026-09-10T00:00:00Z"))
+
+    assert (record["removed"], record["video_id"]) == (False, "real")
+    assert record["title"] == "Watch https://www.youtube.com/watch?v=real now"
+    assert [v["video_id"] for v in history.watched_videos([record])] == ["real"]
+
+
+def test_a_genuine_title_rewatched_is_never_learned_as_a_placeholder(tmp_path):
+    rewatches = [genuine("real", f"2026-09-1{i}T00:00:00Z") for i in range(4)]
+    source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, *rewatches])
+
+    history.import_history(source, tmp_path / "h.json", now=NOW)
+
+    saved = json.loads((tmp_path / "h.json").read_text(encoding="utf-8"))["videos"]
+    assert [v["removed"] for v in saved if v["video_id"] == "real"] == [False] * 4
+
+
+def test_the_placeholder_forms_of_an_export():
+    entries = [unavailable(f"g{i}", "2026-09-10T00:00:00Z", prefix="Angesehen: ") for i in range(3)]
+    entries += [genuine("real", "2026-09-10T00:00:00Z")] * 3
+
+    assert history.placeholder_forms(entries) == {"Watched {}", "{}", "Angesehen: {}"}
+
+
+def test_the_placeholder_phrasing_with_a_channel_is_a_watch():
+    entry = unavailable("real3", "2026-09-10T00:00:00Z")
+    entry["subtitles"] = [{"name": "Channel One", "url": "https://www.youtube.com/channel/UC1"}]
+
+    assert history.history_record(entry)["removed"] is False
