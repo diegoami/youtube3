@@ -119,6 +119,11 @@ def subscribe_to(client, channels, *, apply=False, limit=DEFAULT_LIMIT):
     """
     subscribed = subscribed_channel_ids(client)
     kept, skipped = _skipping(channels, subscribed, "channel_id", "already subscribed")
+    # YouTube refuses a subscription to yourself; your own channel is often
+    # among the most watched.
+    own = {channel["id"] for channel in client.get_channels().get("items", [])}
+    kept, own_skipped = _skipping(kept, own, "channel_id", "your own channel")
+    skipped.update(own_skipped)
     created = {}
 
     def subscribe(channel):
@@ -136,7 +141,7 @@ def subscribe_to(client, channels, *, apply=False, limit=DEFAULT_LIMIT):
     result = _run(kept, subscribe, apply=apply, limit=limit, key="channel_id")
     # A duplicate is not a success: it did nothing.
     result["done"] = [channel_id for channel_id in result["done"] if channel_id in created]
-    result.update(skipped=skipped, created=created, read_cost=_pages(len(subscribed)))
+    result.update(skipped=skipped, created=created, read_cost=_pages(len(subscribed)) + 1)
     return result
 
 

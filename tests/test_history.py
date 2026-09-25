@@ -220,3 +220,60 @@ def test_the_sample_explains_an_html_export(tmp_path):
     )
 
     assert result.returncode == 1 and "History set to JSON" in result.stderr
+
+
+# The shape the owner's real export has for a video deleted or made private since (#51)
+
+
+def unavailable(video_id, when, prefix="Watched "):
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    return {"header": "YouTube", "title": prefix + url, "titleUrl": url, "time": when, "products": ["YouTube"]}
+
+
+def test_a_video_whose_title_is_its_own_link_and_has_no_channel_is_unavailable():
+    record = history.history_record(unavailable("gone1", "2026-09-10T00:00:00Z"))
+
+    assert record["removed"] is True
+    assert record["video_id"] == "gone1"
+    assert record["title"] is None
+    assert record["channel_id"] is None
+
+
+def test_it_is_recognised_whatever_the_language_around_the_link():
+    record = history.history_record(unavailable("gone2", "2026-09-10T00:00:00Z", prefix="Angesehen: "))
+
+    assert record["removed"] is True and record["title"] is None
+
+
+def test_a_real_title_that_mentions_a_link_is_not_unavailable():
+    entry = watch("real", "2026-09-10T00:00:00Z", title="Tutorial: https://www.youtube.com/watch?v=real")
+
+    assert history.history_record(entry)["removed"] is False
+
+
+def test_the_import_counts_unavailable_videos_as_removed(tmp_path):
+    source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, unavailable("gone1", "2026-09-11T00:00:00Z")])
+
+    summary = history.import_history(source, tmp_path / "h.json", now=NOW)
+
+    assert summary["removed"] == 3
+    assert summary["count"] == 9
+
+
+def test_unavailable_videos_are_never_selected_for_an_action(tmp_path):
+    records = [history.history_record(unavailable("gone1", "2026-09-11T00:00:00Z")), history.history_record(WATCHES[0])]
+
+    assert [v["video_id"] for v in history.watched_videos(records)] == ["aaa"]
+
+
+def test_a_title_that_is_exactly_its_link_is_unavailable():
+    record = history.history_record(unavailable("gone3", "2026-09-10T00:00:00Z", prefix=""))
+
+    assert record["removed"] is True and record["title"] is None
+
+
+def test_a_long_real_title_with_a_link_is_not_unavailable_even_without_a_channel():
+    url = "https://www.youtube.com/watch?v=real2"
+    entry = {"header": "YouTube", "title": f"Watched Full lecture notes and slides are at {url} (part 2 of 7)", "titleUrl": url, "time": "2026-09-10T00:00:00Z"}
+
+    assert history.history_record(entry)["removed"] is False
