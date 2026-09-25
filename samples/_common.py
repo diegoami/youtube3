@@ -50,5 +50,8 @@ def default_path(value, stem, suffix, profile):
 
 def channel_title(profile):
     """The profile's channel, from what it saved (no API call), for page titles."""
-    saved = profiles.saved_channel(profile) if profile else None
+    try:
+        saved = profiles.saved_channel(profile) if profile else None
+    except profiles.ProfileError:
+        return None
     return saved["title"] if saved else None

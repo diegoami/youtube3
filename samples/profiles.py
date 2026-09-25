@@ -12,7 +12,9 @@ if __name__ == "__main__":
     arguments.add_argument("--client-secrets", type=Path, default=DEFAULT_SECRETS)
     commands = arguments.add_subparsers(dest="command", required=True)
     commands.add_parser("list", help="each profile and its channel")
-    add = commands.add_parser("add", help="log in (the browser asks which account or brand) and save it")
+    add = commands.add_parser(
+        "add", help="log in (the browser asks which account or brand) and save it; for an existing profile, log in again"
+    )
     add.add_argument("name")
     whoami = commands.add_parser("whoami", help="check a profile's login against its channel")
     whoami.add_argument("name")
@@ -26,15 +28,23 @@ if __name__ == "__main__":
             found = profiles.list_profiles()
             print(f"Profiles in {profiles.config_dir()}:" if found else f"No profile yet in {profiles.config_dir()}.")
             for profile in found:
-                channel = f"{profile['title']} ({profile['id']})" if profile["id"] else "not used yet"
+                channel = f"{profile['title']} ({profile['id']})" if profile["id"] else f"{profile['problem']}: add it again"
                 print(f"  {profile['name']:20} {channel}")
         elif args.command == "adopt":
-            print(f"Saved as {profiles.adopt(args.name, args.token_file)}; the original is kept.")
-            channel = YoutubeClient(args.client_secrets, profile=args.name).signed_in_channel()
+            profiles.check_name(args.name)
+            if profiles.token_path(args.name).exists():
+                raise profiles.ProfileError(f"profile {args.name!r} already exists")
+            if not args.token_file.exists():
+                raise profiles.ProfileError(f"{args.token_file}: no such token file")
+            channel = YoutubeClient(args.client_secrets, token_file=args.token_file).signed_in_channel()
+            print(f"Saved as {profiles.adopt(args.name, args.token_file, channel)}; the original is kept.")
+            print(f"{args.name}: {channel['title']} ({channel['id']})")
+        elif args.command == "add":
+            # An existing profile keeps its login unless the new one is for its channel.
+            with profiles.replacing_login(args.name):
+                channel = YoutubeClient(args.client_secrets, profile=args.name).signed_in_channel()
             print(f"{args.name}: {channel['title']} ({channel['id']})")
         else:
-            if args.command == "add" and profiles.token_path(args.name).exists():
-                raise profiles.ProfileError(f"profile {args.name!r} already exists")
             channel = YoutubeClient(args.client_secrets, profile=args.name).signed_in_channel()
             print(f"{args.name}: {channel['title']} ({channel['id']})")
     except profiles.ProfileError as error:
