@@ -182,3 +182,10 @@ test("a thumbnail that fails to load is removed, not shown broken", () => {
   image.listeners.error();
   assert.equal(image.removed, true);
 });
+
+test("an unavailable video with its id keeps no title, and says so", () => {
+  const entry = watch("gone1", "2026-09-21T10:00:00Z", { title: null, channel_id: null, channel_title: null, removed: true });
+  const nodes = all(h.entryRow(entry, { views: VIEWS, liked: new Set(), timeZone: "UTC" }));
+  assert.ok(nodes.some((n) => n.attributes.class === "title" && n.textContent === "A video that is no longer available"));
+  assert.ok(nodes.every((n) => !(n.textContent || "").startsWith("https://")));
+});

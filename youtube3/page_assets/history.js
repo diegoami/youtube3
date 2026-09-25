@@ -94,7 +94,8 @@ function entryRow(entry, context) {
   }
   const meta = element("div", { class: "meta" });
   if (entry.video_id) {
-    meta.append(link(entry.title || entry.video_id, `https://www.youtube.com/watch?v=${encodeURIComponent(entry.video_id)}`, "title"));
+    const text = entry.title || (entry.removed ? "A video that is no longer available" : entry.video_id);
+    meta.append(link(text, `https://www.youtube.com/watch?v=${encodeURIComponent(entry.video_id)}`, "title"));
   } else {
     meta.append(element("span", { class: "title" }, entry.title || "A video that has been removed"));
   }

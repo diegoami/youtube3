@@ -51,6 +51,8 @@ def subscription(channel_id):
     return {"snippet": {"resourceId": {"channelId": channel_id}, "title": f"title {channel_id}"}}
 
 
+# The signed-in user's own channel, read by subscribe_to (never one of the suggestions here).
+MINE = {"items": [{"id": "UCme"}]}
 QUOTA = (403, {"error": {"code": 403, "errors": [{"reason": "quotaExceeded"}]}})
 DUPLICATE = (400, {"error": {"code": 400, "errors": [{"reason": "subscriptionDuplicate"}]}})
 
@@ -196,28 +198,28 @@ def test_a_run_stops_at_the_quota_and_reports_the_rest(fake):
 
 
 def test_a_subscribe_dry_run_only_reads_and_skips_what_is_subscribed(fake):
-    yt = fake(page([subscription("UC1")]))
+    yt = fake(page([subscription("UC1")]), MINE)
 
     result = actions.subscribe_to(yt.client, history.top_channels(HISTORY))
 
-    assert [r.method for r in yt.requests] == ["GET"]
+    assert [(r.method, r.path) for r in yt.requests] == [("GET", "subscriptions"), ("GET", "channels")]
     assert result["planned"] == ["UC2"]
     assert result["skipped"] == {"UC1": "already subscribed"}
 
 
 def test_subscribing_records_each_subscription(fake):
-    yt = fake(page([]), {"id": "sub-1"}, {"id": "sub-2"})
+    yt = fake(page([]), MINE, {"id": "sub-1"}, {"id": "sub-2"})
 
     result = actions.subscribe_to(yt.client, history.top_channels(HISTORY), apply=True)
 
-    posts = yt.requests[1:]
+    posts = yt.requests[2:]
     assert [r.body["snippet"]["resourceId"]["channelId"] for r in posts] == ["UC1", "UC2"]
     assert result["created"] == {"UC1": "sub-1", "UC2": "sub-2"}
     assert result["done"] == ["UC1", "UC2"]
 
 
 def test_a_duplicate_subscription_is_skipped_not_done(fake):
-    yt = fake(page([]), DUPLICATE, {"id": "sub-2"})
+    yt = fake(page([]), MINE, DUPLICATE, {"id": "sub-2"})
 
     result = actions.subscribe_to(yt.client, history.top_channels(HISTORY), apply=True)
 
@@ -392,3 +394,14 @@ def test_the_reads_a_run_makes_are_reported_apart_from_the_writes(fake):
     result = actions.like_watched(yt.client, history.watched_videos(HISTORY))
 
     assert (result["cost"], result["read_cost"]) == (100, 1)
+
+
+def test_your_own_channel_is_never_suggested(fake):
+    # Found on the owner's real history: their own channel was in the top 5.
+    mine = {"items": [{"id": "UC2"}]}
+    yt = fake(page([]), mine)
+
+    result = actions.subscribe_to(yt.client, history.top_channels(HISTORY))
+
+    assert result["planned"] == ["UC1"]
+    assert result["skipped"] == {"UC2": "your own channel"}

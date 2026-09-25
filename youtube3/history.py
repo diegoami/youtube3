@@ -89,20 +89,40 @@ def _channel_id(url):
     return path.split("/channel/", 1)[1].split("/")[0] if "/channel/" in path else None
 
 
+# The words Takeout puts around the link of an unavailable video ("Watched ",
+# or the same in the account's language) are short; a real title that happens
+# to contain a link is longer, and has a channel.
+MAX_WORDS_AROUND_LINK = 40
+
+
+def _unavailable(entry, title, url):
+    """A video deleted or made private since the watch.
+
+    Takeout gives it no link at all, or, as the owner's export has it, a title
+    that is only its own link with a few words around it, and no channel.
+    """
+    if not url:
+        return True
+    around = title.replace(url, "").strip()
+    return url in title and not entry.get("subtitles") and len(around) <= MAX_WORDS_AROUND_LINK
+
+
 def history_record(entry):
     """One watched video, or None for an entry that is not a watch."""
     title = entry.get("title") or ""
     video_id = _video_id(entry.get("titleUrl"))
     subtitles = entry.get("subtitles") or [{}]
-    # A removed video has no link at all, whatever the account's language;
-    # a link that is not a video (a post, a story) is not a watch.
-    removed = not entry.get("titleUrl")
+    url = entry.get("titleUrl")
+    removed = _unavailable(entry, title, url)
+    # A link that is not a video (a post, a story) is not a watch.
     if video_id is None and not removed:
         return None
+    if url and removed:
+        title = None  # the URL is not a title
     return {
         "video_id": video_id,
         # Only the English prefix is known; other languages keep their text.
-        "title": title[len(ENGLISH_PREFIX) :] if title.startswith(ENGLISH_PREFIX) and not removed else title,
+        "title": title[len(ENGLISH_PREFIX) :] if title and title.startswith(ENGLISH_PREFIX) and not removed else title,
         "channel_id": _channel_id(subtitles[0].get("url")),
         "channel_title": subtitles[0].get("name"),
         "watched_at": entry.get("time"),
@@ -160,8 +180,8 @@ def watched_videos(videos):
     """
     seen = {}
     for record in sorted(videos, key=lambda r: r["watched_at"] or "", reverse=True):
-        if not record["video_id"]:
-            continue
+        if not record["video_id"] or record["removed"]:
+            continue  # nothing to act on: gone, or unavailable
         video = seen.get(record["video_id"])
         if video is None:
             seen[record["video_id"]] = {

@@ -121,10 +121,12 @@ uploading to PyPI is the owner's, always.
   `samples/client_secrets.json`); `youtube.dat` (the oauth2client token
   store) and `token.json` or any other saved OAuth token; Google Takeout
   exports (`Takeout/`, `takeout-*.zip`) and what is imported from them
-  (`history*.json`, `history*.html`): Claude runs no importer on the
-  owner's real export either; the owner runs it and shares the counts it
-  prints (owner decision on #37); `.env*`; `~/.pypirc` and PyPI
-  tokens. Never print an access or refresh token, an `Authorization` header
+  (`history*.json`, `history*.html`): Claude runs the importer, builds the
+  page and looks at it only when the owner asks (owner decision on #37,
+  changed by the owner on 2026-09-25: "you can export it too and show it to
+  me, just do not do any destructive operation"), never pastes their
+  contents into an issue or a PR, and does nothing destructive with them; `~/.pypirc` and PyPI
+  tokens; `.env*`. Never print an access or refresh token, an `Authorization` header
   or an API key, not even in test output.
 - **merge:** auto — the conditions are in **Merging** above.
 - **design:** none — see owner decision 3.
