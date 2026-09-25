@@ -174,6 +174,11 @@ uploading to PyPI is the owner's, always.
     - *python-youtube (`pyyoutube`) was considered and not adopted*
       (2026-09-23): it covers the raw API but none of the convenience
       operations, and its OAuth is a manual paste with no token storage.
+    - *yt-dlp with browser cookies (`:ythistory`) is not used for the
+      history* (owner, 2026-09-25: "yt-dlp is not viable for a library I
+      want to distribute"): the cookies are the whole Google login, reading
+      the site this way is against YouTube's terms, and it gives no watch
+      times. The history comes from a Google export only.
     - *`thumbnails.set` takes a local file, not a URL* (max 2 MB), and needs a
       phone-verified channel; videos **uploaded** through an unaudited API
       project are locked private, so uploads happen in Studio and the API
