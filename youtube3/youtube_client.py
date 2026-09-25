@@ -27,18 +27,29 @@ class YoutubeClient:
         """
         if profile is not None and token_file is not None:
             raise ValueError("give a profile or a token_file, not both")
+        new_login = False
         if service is None:
             if client_json_file is None:
                 raise ValueError("client_json_file is required unless a service is passed")
             if profile is not None:
                 profiles.make_folder(profiles.token_path(profile).parent)
                 token_file = profiles.token_path(profile)
+                new_login = not token_file.exists()
             service = self.login(client_json_file, token_file, choose_account=profile is not None)
         self.youtube = service
         self.channel_snippet_map = {}
         self.profile = profile
-        # With a profile, the login must belong to the profile's channel.
-        self._channel = profiles.verify(profile, service) if profile is not None else None
+        self._channel = None
+        if profile is not None:
+            # The login must belong to the profile's channel, recorded only
+            # when the login was just made; a fresh login for another channel
+            # is not kept.
+            try:
+                self._channel = profiles.verify(profile, service, register=new_login)
+            except profiles.ProfileError:
+                if new_login:
+                    token_file.unlink(missing_ok=True)
+                raise
 
     def signed_in_channel(self):
         """{"id", "title"} of the channel this client acts on (1 quota unit, then cached)."""

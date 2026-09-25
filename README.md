@@ -66,6 +66,13 @@ Then give `--profile NAME` to any sample. It prints **"Signed in as <channel>
 that channel (1 quota unit) and refuses to run otherwise, and names its files
 after the profile: `liked-diego.json`, `liked-diego.html`.
 
+-   A profile's channel is recorded when its login is made (`add`, `adopt`)
+    and never changed afterwards: a profile whose record is missing or
+    unreadable is refused, not rebound to whatever login it has.
+-   `profiles.py add NAME` on an existing profile logs in again. The new
+    login is kept only if it is for the profile's channel; otherwise the
+    old one is put back.
+
 -   Logins are kept in `~/.config/youtube3/profiles/` (on Windows
     `%APPDATA%\youtube3\profiles\`), outside any repository, readable by you
     only.
