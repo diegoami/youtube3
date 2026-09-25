@@ -4,6 +4,7 @@ from pathlib import Path
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from . import profiles
 from .auth import load_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
@@ -16,7 +17,7 @@ PAGE_SIZE = 50
 
 
 class YoutubeClient:
-    def __init__(self, client_json_file=None, debug=False, *, token_file=None, service=None):
+    def __init__(self, client_json_file=None, debug=False, *, token_file=None, service=None, profile=None):
         """Log in and build the YouTube client.
 
         client_json_file: the OAuth client secrets file from the Google Cloud
@@ -24,17 +25,31 @@ class YoutubeClient:
         next to the client secrets. service: an already-built client, used
         instead of logging in. debug is kept for compatibility and unused.
         """
+        if profile is not None and token_file is not None:
+            raise ValueError("give a profile or a token_file, not both")
         if service is None:
             if client_json_file is None:
                 raise ValueError("client_json_file is required unless a service is passed")
-            service = self.login(client_json_file, token_file)
+            if profile is not None:
+                profiles.make_folder(profiles.token_path(profile).parent)
+                token_file = profiles.token_path(profile)
+            service = self.login(client_json_file, token_file, choose_account=profile is not None)
         self.youtube = service
         self.channel_snippet_map = {}
+        self.profile = profile
+        # With a profile, the login must belong to the profile's channel.
+        self._channel = profiles.verify(profile, service) if profile is not None else None
 
-    def login(self, client_json_file, token_file=None):
+    def signed_in_channel(self):
+        """{"id", "title"} of the channel this client acts on (1 quota unit, then cached)."""
+        if self._channel is None:
+            self._channel = profiles.signed_in_channel(self.youtube)
+        return self._channel
+
+    def login(self, client_json_file, token_file=None, choose_account=False):
         if token_file is None:
             token_file = Path(client_json_file).parent / "token.json"
-        credentials = load_credentials(client_json_file, token_file)
+        credentials = load_credentials(client_json_file, token_file, choose_account=choose_account)
         # The bundled discovery document is used; the file cache needs oauth2client.
         return build("youtube", "v3", credentials=credentials, cache_discovery=False)
 

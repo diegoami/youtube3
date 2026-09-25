@@ -49,6 +49,41 @@ Each takes `--client-secrets` (default `samples/client_secrets.json`) and
 removing, publishing, unliking) only show what they would do unless given
 `--apply`.
 
+## SEVERAL CHANNELS
+
+A login belongs to the one channel (or brand account) you pick on Google's
+consent screen, and the API cannot list the channels you manage. So each
+channel is logged in once and saved as a **profile**:
+
+```
+python samples/profiles.py adopt caramellalynx   # today's samples/token.json, without logging in again
+python samples/profiles.py add diego             # the browser asks which account or brand
+python samples/profiles.py list
+```
+
+Then give `--profile NAME` to any sample. It prints **"Signed in as <channel>
+(<id>)"** before doing anything, checks that the saved login still belongs to
+that channel (1 quota unit) and refuses to run otherwise, and names its files
+after the profile: `liked-diego.json`, `liked-diego.html`,
+`history-diego.json`, `history-diego.html`, `history-diego-like-*.json`.
+
+-   Logins are kept in `~/.config/youtube3/profiles/` (on Windows
+    `%APPDATA%\youtube3\profiles\`), outside any repository, readable by you
+    only.
+-   Each brand account has its own watch history: export it from Takeout
+    after switching to that account at the top right of
+    takeout.google.com. `import_history.py --profile NAME` warns when an
+    export does not look like that channel's (few of its likes among the
+    watches).
+-   All channels share one quota: 10,000 units a day for the Cloud project.
+
+For the watch history in one command, with the newest Takeout zip found in
+your Downloads folder:
+
+```
+python samples/history_page.py --profile diego
+```
+
 ## LIKES
 
 `youtube3.likes` exports your liked videos and unlikes them in bulk, safely:

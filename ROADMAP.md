@@ -15,6 +15,8 @@
 | F-5 | "help with publishing, such setting a thumbnail" | landed | Proposal #33, PR #34. One command: thumbnail from a local file, title and description, publish now or schedule (`publishAt`). Uploads stay in Studio (`CLAUDE.md`, decided). Depends on F-2. |
 | F-6 | "modify the history" | landed | Proposal #37, PR #38, reshaped by the owner: "we can get an history and get some links or ways to enable user to work on the history". Import a Takeout export read-only, a history page, links to where Google lets it be changed. Acting on history through the API (like, playlist, subscribe) is F-7. |
 | F-7 | "get some links or ways to enable user to work on the history" — "start F-7" | landed | Proposal #39, PR #40. Like, add to a playlist, or subscribe from a history selection, as a dry run unless `--apply`, with an undo log. Depends on F-6. |
+| F-8 | "Well the thing that I miss, I have several \"brands\", I need to manage them separately" — "ok can you simplify the takeout workflow for me too ?" | in review | Proposal #55. One profile per channel (brand account), checked on every run; files per profile; the newest Takeout found in Downloads, one command for the history page, a warning when an export is another account's. |
+| F-9 | "ok can you simplify the takeout workflow for me too ?" | requested | Fetch the history without Takeout through the Data Portability API (EU). A trial is running: consent, then one export of `myactivity.youtube`. |
 
 ## Statuses
 

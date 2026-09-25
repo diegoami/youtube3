@@ -145,7 +145,7 @@ def test_the_token_defaults_to_token_json_next_to_the_secrets(monkeypatch, tmp_p
     calls = []
     monkeypatch.setattr(
         "youtube3.youtube_client.load_credentials",
-        lambda secrets, token: calls.append((secrets, token)) or "credentials",
+        lambda secrets, token, **options: calls.append((secrets, token)) or "credentials",
     )
     builds = []
     monkeypatch.setattr(
@@ -164,7 +164,7 @@ def test_an_explicit_token_file_is_used(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(
         "youtube3.youtube_client.load_credentials",
-        lambda secrets, token: calls.append(token) or "credentials",
+        lambda secrets, token, **options: calls.append(token) or "credentials",
     )
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *args, **kwargs: "service")
 
