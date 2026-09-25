@@ -91,13 +91,11 @@ def _channel_id(url):
 
 # Takeout's placeholder for a video deleted or made private since: its own
 # link wrapped in a fixed phrase, and no channel. In English the phrase is
-# "Watched <link>"; the bare link is accepted too.
+# "Watched <link>"; the bare link is accepted too. An export in another
+# language gives its phrase explicitly (import_history's placeholders): it is
+# never guessed, because genuine titles can have the same shape (#59), and an
+# entry in an unknown phrasing stays a watch.
 KNOWN_PLACEHOLDERS = frozenset({"Watched {}", "{}"})
-# In another language the phrase is learned from the export: the same wrapping
-# around the links of at least this many different videos. A genuine title
-# belongs to one video, however often it is rewatched, so it is never learned;
-# a single entry in an unknown phrasing stays a watch.
-MIN_VIDEOS_FOR_A_PLACEHOLDER = 3
 
 
 def _wrapping(entry):
@@ -108,27 +106,16 @@ def _wrapping(entry):
     return title.replace(url, "{}")
 
 
-def placeholder_forms(entries):
-    """The placeholder phrasings of an export: the known ones and those it shows."""
-    videos = {}
-    for entry in entries:
-        wrapping = _wrapping(entry)
-        if wrapping is not None:
-            videos.setdefault(wrapping, set()).add(entry["titleUrl"])
-    learned = {wrapping for wrapping, urls in videos.items() if len(urls) >= MIN_VIDEOS_FOR_A_PLACEHOLDER}
-    return KNOWN_PLACEHOLDERS | learned
-
-
 def history_record(entry, placeholders=KNOWN_PLACEHOLDERS):
     """One watched video, or None for an entry that is not a watch.
 
-    placeholders: the phrasings that mark an unavailable video (placeholder_forms).
+    placeholders: the phrasings that mark an unavailable video, {} standing for its link.
     """
     title = entry.get("title") or ""
     video_id = _video_id(entry.get("titleUrl"))
     subtitles = entry.get("subtitles") or [{}]
     url = entry.get("titleUrl")
-    # Unavailable: no link at all, or a known placeholder phrasing around its own link.
+    # Unavailable: no link at all, or a placeholder phrasing around its own link.
     removed = not url or _wrapping(entry) in placeholders
     # A link that is not a video (a post, a story) is not a watch.
     if video_id is None and not removed:
@@ -166,13 +153,12 @@ def summarize(records):
     }
 
 
-def import_history(source, path, *, include_ads=False, include_music=False, now=None):
+def import_history(source, path, *, include_ads=False, include_music=False, placeholders=KNOWN_PLACEHOLDERS, now=None):
     """Read a Takeout export and write history.json, newest first.
 
     Returns the summary and what was left out, and never a title or URL.
     """
     entries = find_watch_history(source)
-    placeholders = placeholder_forms(entries)
     records = [r for r in (history_record(entry, placeholders) for entry in entries) if r]
     ads = sum(r["ad"] for r in records)
     music = sum(r["music"] for r in records)
