@@ -239,11 +239,12 @@ def test_a_video_whose_title_is_its_own_link_and_has_no_channel_is_unavailable()
     assert record["channel_id"] is None
 
 
-def test_another_language_is_learned_from_the_export_across_three_videos(tmp_path):
+def test_another_language_is_recognised_when_its_phrasing_is_given(tmp_path):
     german = [unavailable(f"gone{i}", f"2026-09-1{i}T00:00:00Z", prefix="Angesehen: ") for i in range(3)]
     source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, *german])
+    placeholders = history.KNOWN_PLACEHOLDERS | {"Angesehen: {}"}
 
-    history.import_history(source, tmp_path / "h.json", now=NOW)
+    history.import_history(source, tmp_path / "h.json", placeholders=placeholders, now=NOW)
 
     saved = json.loads((tmp_path / "h.json").read_text(encoding="utf-8"))["videos"]
     assert {v["video_id"] for v in saved if v["removed"] and v["video_id"]} == {"gone0", "gone1", "gone2"}
@@ -318,11 +319,30 @@ def test_a_genuine_title_rewatched_is_never_learned_as_a_placeholder(tmp_path):
     assert [v["removed"] for v in saved if v["video_id"] == "real"] == [False] * 4
 
 
-def test_the_placeholder_forms_of_an_export():
-    entries = [unavailable(f"g{i}", "2026-09-10T00:00:00Z", prefix="Angesehen: ") for i in range(3)]
-    entries += [genuine("real", "2026-09-10T00:00:00Z")] * 3
+# From the round-2 review (#59): a phrasing is never learned from the export
 
-    assert history.placeholder_forms(entries) == {"Watched {}", "{}", "Angesehen: {}"}
+
+def test_genuine_titles_of_different_videos_sharing_a_wrapper_stay_watches(tmp_path):
+    videos = [genuine(f"real{i}", f"2026-09-1{i}T00:00:00Z") for i in range(5)]
+    source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, *videos])
+
+    history.import_history(source, tmp_path / "h.json", now=NOW)
+
+    saved = json.loads((tmp_path / "h.json").read_text(encoding="utf-8"))["videos"]
+    genuine_ones = [v for v in saved if (v["video_id"] or "").startswith("real")]
+    assert [v["removed"] for v in genuine_ones] == [False] * 5
+    assert all(v["title"] == f"Watch https://www.youtube.com/watch?v={v['video_id']} now" for v in genuine_ones)
+    assert {v["video_id"] for v in history.watched_videos(saved)} >= {f"real{i}" for i in range(5)}
+
+
+def test_an_unknown_phrasing_across_many_videos_stays_a_watch_unless_given(tmp_path):
+    german = [unavailable(f"gone{i}", f"2026-09-1{i}T00:00:00Z", prefix="Angesehen: ") for i in range(5)]
+    source = takeout_zip(tmp_path / "t.zip", watches=[*WATCHES, *german])
+
+    history.import_history(source, tmp_path / "h.json", now=NOW)
+
+    saved = json.loads((tmp_path / "h.json").read_text(encoding="utf-8"))["videos"]
+    assert [v["removed"] for v in saved if (v["video_id"] or "").startswith("gone")] == [False] * 5
 
 
 def test_the_placeholder_phrasing_with_a_channel_is_a_watch():
