@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from _common import client, parser
+from _common import client, default_path, parser
 
 from youtube3 import actions, history, likes
 
@@ -22,7 +22,7 @@ def show(items, key, verb, result):
 if __name__ == "__main__":
     arguments = parser("Like, collect into a playlist, or subscribe from your watch history; a dry run unless --apply.")
     arguments.add_argument("action", choices=["like", "playlist", "subscribe"])
-    arguments.add_argument("--from", dest="history", type=Path, default=Path("history.json"))
+    arguments.add_argument("--from", dest="history", type=Path, help="default: history.json, or history-<profile>.json")
     arguments.add_argument("--channel", help="a channel id, or a channel title in any case")
     arguments.add_argument("--watched-after", help="YYYY-MM-DD: last watched on that day or later")
     arguments.add_argument("--watched-before", help="YYYY-MM-DD: last watched before that day")
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     arguments.add_argument("--limit", type=int, default=likes.DEFAULT_LIMIT)
     arguments.add_argument("--apply", action="store_true", help="really do it")
     args = arguments.parse_args()
+    args.history = default_path(args.history, "history", ".json", args.profile)
 
     records = likes.load_export(args.history)["videos"]
     criteria = dict(
@@ -76,5 +77,5 @@ if __name__ == "__main__":
         if result["stopped"]:
             print(f"Stopped ({result['stopped']}): {len(result['not_done'])} not done; run again later.")
         if result["done"]:
-            log = actions.write_action_log(args.history.parent, args.action, items, result)
+            log = actions.write_action_log(args.history.parent, args.action, items, result, profile=args.profile)
             print(f"Done: {len(result['done'])}. Undo with: python samples/undo_history_actions.py --from {log}")

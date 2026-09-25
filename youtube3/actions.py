@@ -148,12 +148,12 @@ def subscribe_to(client, channels, *, apply=False, limit=DEFAULT_LIMIT):
 # The log of an applied run, and its undo
 
 
-def write_action_log(folder, action, items, result, now=None):
-    """Save what a run created, as history-<action>-<time>.json, for undo_actions."""
+def write_action_log(folder, action, items, result, now=None, profile=None):
+    """Save what a run created, as history-[<profile>-]<action>-<time>.json, for undo_actions."""
     now = now or datetime.now(timezone.utc)
     key = "channel_id" if action == "subscribe" else "video_id"
     done = [dict(item, created=result["created"].get(item[key])) for item in items if item[key] in result["done"]]
-    stem = f"history-{action}-{now.strftime('%Y%m%d-%H%M%S')}"
+    stem = f"history-{profile + '-' if profile else ''}{action}-{now.strftime('%Y%m%d-%H%M%S')}"
     path, counter = Path(folder) / f"{stem}.json", 2
     while path.exists():
         path, counter = Path(folder) / f"{stem}-{counter}.json", counter + 1

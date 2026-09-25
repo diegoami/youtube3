@@ -277,3 +277,38 @@ def test_a_long_real_title_with_a_link_is_not_unavailable_even_without_a_channel
     entry = {"header": "YouTube", "title": f"Watched Full lecture notes and slides are at {url} (part 2 of 7)", "titleUrl": url, "time": "2026-09-10T00:00:00Z"}
 
     assert history.history_record(entry)["removed"] is False
+
+
+# Finding the newest export, and whose it is (F-8)
+
+
+def test_the_newest_export_with_a_history_is_found(tmp_path):
+    import os
+    old = takeout_zip(tmp_path / "takeout-20260101T000000Z-1-001.zip")
+    new = takeout_zip(tmp_path / "takeout-20260924T000000Z-1-001.zip")
+    no_history = tmp_path / "takeout-20260925T000000Z-1-001.zip"
+    with zipfile.ZipFile(no_history, "w") as archive:
+        archive.writestr("Takeout/Mail/x.json", "[]")
+    (tmp_path / "other.zip").write_text("not a takeout")
+    for path, when in ((old, 1_000), (new, 2_000), (no_history, 3_000)):
+        os.utime(path, (when, when))
+
+    assert history.find_latest_takeout([tmp_path]) == new
+
+
+def test_no_export_is_none(tmp_path):
+    assert history.find_latest_takeout([tmp_path, tmp_path / "missing"]) is None
+
+
+def test_a_history_with_few_of_the_likes_looks_like_another_account():
+    records = [{"video_id": f"v{i}"} for i in range(100)]
+    mine = [f"v{i}" for i in range(60)]
+    theirs = [f"v{i}" for i in range(8)] + [f"x{i}" for i in range(580)]
+
+    assert history.likes_overlap(records, mine)["another_account"] is False
+    result = history.likes_overlap(records, theirs)
+    assert (result["liked"], result["found"], result["another_account"]) == (588, 8, True)
+
+
+def test_too_few_likes_are_not_judged():
+    assert history.likes_overlap([{"video_id": "a"}], ["x", "y"])["another_account"] is False

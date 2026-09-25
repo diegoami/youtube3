@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from _common import client, parser
+from _common import client, default_path, parser
 from _rating import run
 
 from youtube3 import likes
 
 if __name__ == "__main__":
     arguments = parser("Unlike the liked videos an export selects; a dry run unless --apply.")
-    arguments.add_argument("--from", dest="export", type=Path, default=Path("liked.json"))
+    arguments.add_argument("--from", dest="export", type=Path, help="default: liked.json, or liked-<profile>.json")
     arguments.add_argument("--channel", help="a channel id, or a channel title in any case")
     arguments.add_argument("--liked-before", help="YYYY-MM-DD: liked before that day")
     arguments.add_argument("--liked-after", help="YYYY-MM-DD: liked on that day or later")
@@ -16,6 +16,7 @@ if __name__ == "__main__":
     arguments.add_argument("--limit", type=int, default=likes.DEFAULT_LIMIT)
     arguments.add_argument("--apply", action="store_true", help="really unlike them")
     args = arguments.parse_args()
+    args.export = default_path(args.export, "liked", ".json", args.profile)
     if not any([args.channel, args.liked_before, args.liked_after, args.ids, args.unavailable]):
         arguments.error("give at least one of --channel, --liked-before, --liked-after, --ids, --unavailable")
 

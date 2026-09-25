@@ -248,3 +248,51 @@ def top_channels(videos, *, min_views=1):
         entry["views"] += 1
     ranked = sorted(counts.values(), key=lambda c: (-c["views"], (c["channel_title"] or "").casefold()))
     return [channel for channel in ranked if channel["views"] >= min_views]
+
+
+# Finding the export, and checking whose it is
+
+
+def download_folders():
+    """Where a browser saves Takeout: ~/Downloads, and on WSL the Windows ones too."""
+    folders = [Path.home() / "Downloads"]
+    windows_users = Path("/mnt/c/Users")
+    if windows_users.is_dir():
+        folders += sorted(windows_users.glob("*/Downloads"))
+    return folders
+
+
+def find_latest_takeout(folders=None):
+    """The newest takeout-*.zip holding a watch history, or None."""
+    candidates = []
+    for folder in folders if folders is not None else download_folders():
+        try:
+            candidates += [path for path in Path(folder).glob("takeout-*.zip") if path.is_file()]
+        except OSError:
+            continue  # a folder we may not read
+    for path in sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            find_watch_history(path)
+        except (HistoryError, OSError, zipfile.BadZipFile):
+            continue
+        return path
+    return None
+
+
+# Few of a channel's likes among its watches means the export is another account's.
+MIN_LIKES_TO_JUDGE = 50
+MIN_SHARE_OF_LIKES_WATCHED = 0.2
+
+
+def likes_overlap(records, liked_ids):
+    """How many of a channel's likes appear among the watches, and whether that is suspicious."""
+    watched = {record["video_id"] for record in records if record["video_id"]}
+    liked = set(liked_ids)
+    found = len(liked & watched)
+    share = found / len(liked) if liked else None
+    return {
+        "liked": len(liked),
+        "found": found,
+        "share": share,
+        "another_account": len(liked) >= MIN_LIKES_TO_JUDGE and share < MIN_SHARE_OF_LIKES_WATCHED,
+    }

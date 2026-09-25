@@ -16,7 +16,7 @@ WINDOWS = os.name == "nt"
 logger = logging.getLogger("youtube3")
 
 
-def load_credentials(client_secrets_file, token_file):
+def load_credentials(client_secrets_file, token_file, *, choose_account=False):
     """Return valid credentials for the YouTube scope.
 
     Uses the saved token when it is valid, refreshes it when it has expired,
@@ -48,7 +48,9 @@ def load_credentials(client_secrets_file, token_file):
     if credentials is None:
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets_file), SCOPES)
         # port=0 takes any free port; the URL is printed when no browser opens (WSL).
-        credentials = flow.run_local_server(port=0)
+        # choose_account shows Google's account chooser, where a brand account can be picked.
+        extra = {"prompt": "select_account consent"} if choose_account else {}
+        credentials = flow.run_local_server(port=0, **extra)
 
     save_credentials(credentials, token_path)
     return credentials
