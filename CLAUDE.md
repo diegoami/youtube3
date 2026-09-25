@@ -121,12 +121,9 @@ uploading to PyPI is the owner's, always.
   `samples/client_secrets.json`); `youtube.dat` (the oauth2client token
   store) and `token.json` or any other saved OAuth token, including the
   profiles in `~/.config/youtube3/profiles/` (F-8); Google Takeout
-  exports (`Takeout/`, `takeout-*.zip`) and what is imported from them
-  (`history*.json`, `history*.html`): Claude runs the importer, builds the
-  page and looks at it only when the owner asks (owner decision on #37,
-  changed by the owner on 2026-09-25: "you can export it too and show it to
-  me, just do not do any destructive operation"), never pastes their
-  contents into an issue or a PR, and does nothing destructive with them; `~/.pypirc` and PyPI
+  exports (`Takeout/`, `takeout-*.zip`) and the files once imported from
+  them (`history*.json`, `history*.html`), left on disk from before #62;
+  `~/.pypirc` and PyPI
   tokens; `.env*`. Never print an access or refresh token, an `Authorization` header
   or an API key, not even in test output.
 - **merge:** auto — the conditions are in **Merging** above.
@@ -165,9 +162,15 @@ uploading to PyPI is the owner's, always.
   - **Decided, and not to be re-opened:**
     - *Watch history cannot be read or modified through the API.* Google
       removed history from the Data API in 2016; `relatedPlaylists` no longer
-      carries `watchHistory`. History features are read-only, from a Google
-      Takeout export. Deleting history is done on myactivity.google.com;
-      browser automation for it is out (fragile, against YouTube's terms).
+      carries `watchHistory`. Deleting history is done on
+      myactivity.google.com; browser automation for it is out (fragile,
+      against YouTube's terms).
+    - *The library has no history features* (owner, 2026-09-25: "let us
+      drop history management", #62). The Takeout import, the history page
+      and the actions on the history (F-6, F-7) were removed before any
+      release: a Google export takes hours and exports whichever account the
+      browser has selected, not reliably the brand meant. They remain in the
+      tags v2.2.0–v2.5.1.
     - *`search.list(relatedToVideoId=…)` is gone* (removed in 2023), so
       related videos cannot be fetched; *`activities.list(mine=True)`* returns
       the owner's own activity, not recommendations.
@@ -178,7 +181,7 @@ uploading to PyPI is the owner's, always.
       history* (owner, 2026-09-25: "yt-dlp is not viable for a library I
       want to distribute"): the cookies are the whole Google login, reading
       the site this way is against YouTube's terms, and it gives no watch
-      times. The history comes from a Google export only.
+      times.
     - *`thumbnails.set` takes a local file, not a URL* (max 2 MB), and needs a
       phone-verified channel; videos **uploaded** through an unaudited API
       project are locked private, so uploads happen in Studio and the API

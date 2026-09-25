@@ -14,9 +14,6 @@ ASSETS = files("youtube3") / "page_assets"
 # What the page needs from each record; item_id and the rest stay out of it.
 FIELDS = ("video_id", "title", "channel_id", "channel_title", "liked_at", "published_at", "thumbnail", "available")
 
-
-# What the history page needs from each record.
-HISTORY_FIELDS = ("video_id", "title", "channel_id", "channel_title", "watched_at", "removed")
 # A link to another page may only name a sibling file.
 SIBLING = re.compile(r"^[\w.-]+\.html$")
 
@@ -65,21 +62,6 @@ def page_html(export, title="Liked videos", links=()):
     return _fill("page.html", title, ["page.js"], page_data(export, links))
 
 
-def history_html(history, title="Watch history", liked=None, links=()):
-    """The history page; liked is a likes export, to mark the videos also liked."""
-    liked_ids = sorted({video["video_id"] for video in liked["videos"]}) if liked else []
-    data = _script_json(
-        {
-            "imported_at": history.get("imported_at"),
-            "summary": {key: history.get("summary", {}).get(key) for key in ("first", "last")},
-            "videos": [{field: video.get(field) for field in HISTORY_FIELDS} for video in history["videos"]],
-            "liked": liked_ids,
-            "links": _links(links),
-        }
-    )
-    return _fill("history.html", title, ["page.js", "history.js"], data)
-
-
 def _write_atomically(path, text):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +84,3 @@ def build_page(export, path, title="Liked videos", links=()):
     """Write the likes page for an export (a dict, or the path of an export file)."""
     return _write_atomically(path, page_html(_load(export), title, links))
 
-
-def build_history_page(history, path, title="Watch history", liked=None, links=()):
-    """Write the history page for history.json (a dict or its path), with an optional likes export."""
-    return _write_atomically(path, history_html(_load(history), title, _load(liked) if liked else None, links))

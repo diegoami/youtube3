@@ -150,7 +150,6 @@ function init() {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { SORTS, byDate, displayed, fold, matchesQuery, selectVideos, channelCounts, day, element, card };
 } else {
-  // history.js shares this file's helpers; each page starts only its own view.
   document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById("likes-data")) init();
   });

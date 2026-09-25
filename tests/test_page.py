@@ -118,86 +118,16 @@ def test_a_placeholder_in_the_page_title_is_not_filled():
     assert "<title>{{JS}} {{DATA}}</title>" in html
 
 
-# The history page
-
-
-def history(*videos):
-    return {
-        "imported_at": "2026-09-24T12:00:00+00:00",
-        "summary": {"first": "2026-01-01T00:00:00Z", "last": "2026-09-20T00:00:00Z", "count": len(videos)},
-        "videos": list(videos),
-    }
-
-
-def watched(video_id, **fields):
-    record = {
-        "video_id": video_id,
-        "title": f"title {video_id}",
-        "channel_id": "UC1",
-        "channel_title": "Channel One",
-        "watched_at": "2026-09-20T10:00:00Z",
-        "removed": False,
-        "ad": False,
-        "music": False,
-    }
-    record.update(fields)
-    return record
-
-
-def history_data(html):
-    [data] = re.findall(r'<script id="history-data" type="application/json">(.*?)</script>', html, re.S)
-    return json.loads(data)
-
-
-def test_the_history_page_embeds_what_it_shows_and_the_liked_ids():
-    html = page.history_html(history(watched("a"), watched("b")), liked=export(video("b"), video("z")))
-
-    data = history_data(html)
-    assert [v["video_id"] for v in data["videos"]] == ["a", "b"]
-    assert set(data["videos"][0]) == set(page.HISTORY_FIELDS)
-    assert data["liked"] == ["b", "z"]
-    assert data["summary"] == {"first": "2026-01-01T00:00:00Z", "last": "2026-09-20T00:00:00Z"}
-    assert "function initHistory" in html and "function selectVideos" in html
-
-
-def test_a_hostile_history_title_stays_data():
-    html = page.history_html(history(watched("a", title=HOSTILE, channel_title=HOSTILE)))
-
-    assert html.count("</script>") == 2
-    assert "<img src=x" not in html
-    assert history_data(html)["videos"][0]["title"] == HOSTILE
-
-
-def test_the_history_page_is_self_contained():
-    html = page.history_html(history(watched("a")))
-
-    assert not re.search(r"<script[^>]*\bsrc=", html)
-    assert not re.search(r"<link[^>]*stylesheet", html)
-    assert "{{" not in html
+# Links to other pages
 
 
 @pytest.mark.parametrize("href", ["https://example.com/x.html", "../liked.html", "javascript:alert(1)", "liked.json"])
 def test_a_page_links_only_to_a_sibling_html_file(href):
     with pytest.raises(ValueError):
-        page.history_html(history(watched("a")), links=[("x", href)])
-    with pytest.raises(ValueError):
         page.page_html(export(video("a")), links=[("x", href)])
 
 
-def test_the_pages_link_to_each_other():
-    assert history_data(page.history_html(history(watched("a")), links=[("Liked videos", "liked.html")]))["links"] == [
-        ["Liked videos", "liked.html"]
+def test_a_page_carries_its_links():
+    assert embedded_data(page.page_html(export(video("a")), links=[("Other", "other.html")]))["links"] == [
+        ["Other", "other.html"]
     ]
-    assert embedded_data(page.page_html(export(video("a")), links=[("Watch history", "history.html")]))["links"] == [
-        ["Watch history", "history.html"]
-    ]
-
-
-def test_build_history_page_from_files(tmp_path):
-    source, likes = tmp_path / "history.json", tmp_path / "liked.json"
-    source.write_text(json.dumps(history(watched("a"))), encoding="utf-8")
-    likes.write_text(json.dumps(export(video("a"))), encoding="utf-8")
-
-    path = page.build_history_page(source, tmp_path / "history.html", liked=likes)
-
-    assert history_data(path.read_text(encoding="utf-8"))["liked"] == ["a"]
