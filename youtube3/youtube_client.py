@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from . import profiles
-from .auth import BROWSER, SAVED, credentials_from_info, load_credentials
+from .auth import SAVED, credentials_from_info, load_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
 from .publish import WRITABLE_STATUS, thumbnail_upload, writable
@@ -54,9 +54,11 @@ class YoutubeClient:
         step, and only once the login's channel checks out: a login for
         another channel never replaces the saved one, and a failed or
         interrupted login leaves the profile as it was. A channel is recorded
-        only with a login made now in the browser. A saved login that is
-        still valid is not rewritten.
+        only for a new profile, or by profiles.py add (new_login): never by a
+        browser login that opened by itself because the saved one expired
+        (#82). A saved login that is still valid is not rewritten.
         """
+        new_profile = not profiles.profile_path(profile).exists()
         try:
             saved = profiles.read(profile)
         except profiles.ProfileError:
@@ -68,7 +70,7 @@ class YoutubeClient:
         )
         service = self._build(credentials)
         current = profiles.signed_in_channel(service)
-        channel = profiles.match(profile, saved.channel, current, register=source == BROWSER)
+        channel = profiles.match(profile, saved.channel, current, register=new_profile or new_login)
         if source != SAVED or saved.legacy:
             profiles.write(profile, channel, json.loads(credentials.to_json()))
         self._channel = current
