@@ -85,6 +85,40 @@ def test_a_valid_saved_token_is_used_without_a_login(login):
     assert FakeFlow.runs == []
 
 
+def test_a_valid_saved_token_is_not_rewritten(login, monkeypatch):
+    # From the v2.6.1 review (#76): a token that is only read must keep
+    # working where it cannot be written.
+    def refuse(*args):
+        raise PermissionError("read-only folder")
+
+    monkeypatch.setattr(auth, "save_credentials", refuse)
+    saved = FakeCredentials(valid=True)
+
+    credentials, token = login(saved)
+
+    assert credentials is saved and token.read_text() == TOKEN_JSON
+
+
+@pytest.mark.parametrize(
+    "saved, source",
+    [
+        (FakeCredentials(valid=True), auth.SAVED),
+        (FakeCredentials(valid=False, expired=True), auth.REFRESHED),
+        (FakeCredentials(valid=False, expired=True, refresh_error=True), auth.BROWSER),
+        (None, auth.BROWSER),
+    ],
+)
+def test_obtain_says_where_the_login_came_from_and_saves_nothing(monkeypatch, tmp_path, saved, source):
+    monkeypatch.setattr(auth.InstalledAppFlow, "from_client_secrets_file", lambda path, scopes: FakeFlow(path))
+    token = tmp_path / "token.json"
+    if saved is not None:
+        token.write_text(TOKEN_JSON)
+        monkeypatch.setattr(auth.Credentials, "from_authorized_user_file", lambda path, scopes: saved)
+
+    assert auth.obtain_credentials(tmp_path / "s.json", token)[1] == source
+    assert token.read_text() == TOKEN_JSON if saved is not None else not token.exists()
+
+
 def test_an_expired_token_is_refreshed_and_saved_for_the_owner_only(login):
     saved = FakeCredentials(valid=False, expired=True)
 

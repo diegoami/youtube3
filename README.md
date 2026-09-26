@@ -73,7 +73,9 @@ after the profile: `liked-diego.json`, `liked-diego.html`.
     login is kept only if it is for the profile's channel; otherwise the
     old one is put back. The same holds when a saved login has expired and
     the browser opens by itself, and an `add` that was interrupted is
-    settled on the profile's next use.
+    settled on the profile's next use. While one run logs a profile in
+    again, another run on that profile stops with a message instead of
+    interfering.
 
 -   Logins are kept in `~/.config/youtube3/profiles/` (on Windows
     `%APPDATA%\youtube3\profiles\`), outside any repository, readable by you
