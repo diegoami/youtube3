@@ -22,8 +22,11 @@ Pull requests do not wait for the review; the tag does.
 This repository has no `AGENTS.md`. The prompt's first line makes the tool
 the reviewer; a tool that reads `CLAUDE.md` on its own finds the same
 handover at the top of its milestone section. If the tool sandboxes network
-access, every `gh` call needs it: tell the owner to approve those calls when
-asked.
+access, every `gh` call needs it, and so does the first step, `git fetch`:
+tell the owner to approve those calls when asked. A reviewer's clone is
+often left at the previous tag, and a partial clone cannot read the new
+commits' trees without the network ("fatal: unable to read tree"), so the
+prompt always fetches before it checks out.
 
 ## Open the milestone issue first
 
@@ -71,8 +74,10 @@ against the code.
 
 MILESTONE: <vX.Y.Z>, the tag to be created on the candidate if you agree
 THREAD: <milestone issue URL>
-CANDIDATE: master at <full sha>. Check out that SHA before you start, and stop
-and say so if you cannot. PREVIOUS TAG: <vA.B.C>.
+CANDIDATE: master at <full sha>. First run git fetch origin --tags (it needs
+network access; ask for it), then git checkout --detach <full sha>. If the
+checkout fails with "unable to read tree", run git fetch --refetch origin and
+try again. Stop and say so only if it still fails. PREVIOUS TAG: <vA.B.C>.
 
 WHAT CHANGED: <one line per pull request since the previous tag>
 
