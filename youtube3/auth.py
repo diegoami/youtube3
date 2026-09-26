@@ -11,6 +11,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
+# Where obtain_credentials found the login.
+SAVED, REFRESHED, BROWSER = "saved", "refreshed", "browser"
 WINDOWS = os.name == "nt"
 
 logger = logging.getLogger("youtube3")
@@ -23,16 +25,18 @@ def load_credentials(client_secrets_file, token_file, *, choose_account=False):
     and otherwise runs the browser flow. Any new or refreshed token is saved,
     readable by the owner only.
     """
-    credentials, _ = obtain_credentials(client_secrets_file, token_file, choose_account=choose_account)
-    save_credentials(credentials, Path(token_file))
+    credentials, source = obtain_credentials(client_secrets_file, token_file, choose_account=choose_account)
+    if source != SAVED:
+        save_credentials(credentials, Path(token_file))
     return credentials
 
 
 def obtain_credentials(client_secrets_file, token_file, *, choose_account=False):
-    """(credentials, fresh) as load_credentials finds them, without saving anything.
+    """(credentials, source) as load_credentials finds them, without saving anything.
 
-    fresh is True when the browser flow ran: the saved token was missing,
-    unreadable or could not be refreshed.
+    source: SAVED (the saved token, valid as it is), REFRESHED (the saved
+    token, refreshed) or BROWSER (the browser flow ran: the saved token was
+    missing, unreadable or could not be refreshed). Only SAVED needs no save.
     """
     token_path = Path(token_file)
     credentials = None
@@ -45,7 +49,7 @@ def obtain_credentials(client_secrets_file, token_file, *, choose_account=False)
             logger.info("The saved token could not be read; logging in again")
 
     if credentials and credentials.valid:
-        return credentials, False
+        return credentials, SAVED
 
     if credentials and credentials.expired and credentials.refresh_token:
         try:
@@ -61,8 +65,8 @@ def obtain_credentials(client_secrets_file, token_file, *, choose_account=False)
         # port=0 takes any free port; the URL is printed when no browser opens (WSL).
         # choose_account shows Google's account chooser, where a brand account can be picked.
         extra = {"prompt": "select_account consent"} if choose_account else {}
-        return flow.run_local_server(port=0, **extra), True
-    return credentials, False
+        return flow.run_local_server(port=0, **extra), BROWSER
+    return credentials, REFRESHED
 
 
 def save_credentials(credentials, token_path):

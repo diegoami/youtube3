@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from . import profiles
-from .auth import load_credentials, obtain_credentials, save_credentials
+from .auth import BROWSER, SAVED, load_credentials, obtain_credentials, save_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
 from .publish import WRITABLE_STATUS, thumbnail_upload, writable
@@ -43,16 +43,22 @@ class YoutubeClient:
     def _login_profile(self, client_json_file, profile):
         """Log in to a profile's channel; the login is saved only once its channel checks out.
 
-        The channel is recorded only with a login made now (the browser flow
-        ran), and a login for another channel never replaces the saved one (#69).
+        A login for another channel never replaces the saved one (#69). The
+        channel is recorded only with a login made now (the browser flow ran),
+        and only after that login is saved, so a record never points past the
+        login beside it (#75). A saved login that is still valid is not
+        rewritten (#76).
         """
         token_file = profiles.token_path(profile)
         profiles.make_folder(token_file.parent)
         profiles.recover(profile)
-        credentials, fresh = obtain_credentials(client_json_file, token_file, choose_account=True)
+        credentials, source = obtain_credentials(client_json_file, token_file, choose_account=True)
         service = self._build(credentials)
-        self._channel = profiles.verify(profile, service, register=fresh)
-        save_credentials(credentials, token_file)
+        self._channel, new_record = profiles.check(profile, service, register=source == BROWSER)
+        if source != SAVED:
+            save_credentials(credentials, token_file)
+        if new_record:
+            profiles.record(profile, self._channel)
         return service
 
     def signed_in_channel(self):
