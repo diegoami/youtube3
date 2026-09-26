@@ -23,6 +23,17 @@ def load_credentials(client_secrets_file, token_file, *, choose_account=False):
     and otherwise runs the browser flow. Any new or refreshed token is saved,
     readable by the owner only.
     """
+    credentials, _ = obtain_credentials(client_secrets_file, token_file, choose_account=choose_account)
+    save_credentials(credentials, Path(token_file))
+    return credentials
+
+
+def obtain_credentials(client_secrets_file, token_file, *, choose_account=False):
+    """(credentials, fresh) as load_credentials finds them, without saving anything.
+
+    fresh is True when the browser flow ran: the saved token was missing,
+    unreadable or could not be refreshed.
+    """
     token_path = Path(token_file)
     credentials = None
     if token_path.exists():
@@ -34,7 +45,7 @@ def load_credentials(client_secrets_file, token_file, *, choose_account=False):
             logger.info("The saved token could not be read; logging in again")
 
     if credentials and credentials.valid:
-        return credentials
+        return credentials, False
 
     if credentials and credentials.expired and credentials.refresh_token:
         try:
@@ -50,10 +61,8 @@ def load_credentials(client_secrets_file, token_file, *, choose_account=False):
         # port=0 takes any free port; the URL is printed when no browser opens (WSL).
         # choose_account shows Google's account chooser, where a brand account can be picked.
         extra = {"prompt": "select_account consent"} if choose_account else {}
-        credentials = flow.run_local_server(port=0, **extra)
-
-    save_credentials(credentials, token_path)
-    return credentials
+        return flow.run_local_server(port=0, **extra), True
+    return credentials, False
 
 
 def save_credentials(credentials, token_path):

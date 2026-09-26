@@ -152,24 +152,54 @@ def adopt(name, token_file, channel, folder=None, now=None):
     return target
 
 
+# The logins being replaced in this process: their set-aside copy is not a leftover.
+_REPLACING = set()
+
+
+def _aside(token):
+    return token.with_name(f".{token.name}.previous")
+
+
+def recover(name, folder=None):
+    """Settle a login replacement that was interrupted (#70).
+
+    With the login set aside and no new one saved, the old login comes back;
+    with a new one saved (it is saved only once its channel checked out),
+    the old one is dropped.
+    """
+    token = token_path(name, folder)
+    aside = _aside(token)
+    if token in _REPLACING or not aside.exists():
+        return
+    if token.exists():
+        os.unlink(aside)
+    else:
+        os.replace(aside, token)
+
+
 @contextmanager
 def replacing_login(name, folder=None):
     """Set a profile's login aside while a fresh one is made (profiles.py add on an existing profile).
 
-    The old login comes back, over whatever the attempt saved, when the block
-    fails: an abandoned login, or one for another channel.
+    The old login comes back when the block fails: an abandoned login, or
+    one for another channel. An earlier interrupted replacement is settled
+    first (recover).
     """
+    recover(name, folder)
     token = token_path(name, folder)
     if not token.exists():
         yield
         return
-    aside = token.with_name(f".{token.name}.previous")
+    aside = _aside(token)
     os.replace(token, aside)
+    _REPLACING.add(token)
     try:
         yield
     except BaseException:
         os.replace(aside, token)
         raise
+    finally:
+        _REPLACING.discard(token)
     os.unlink(aside)
 
 
