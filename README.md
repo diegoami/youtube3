@@ -9,12 +9,24 @@ A wrapper around youtube Apis:
 ## GOAL
 
 I created this package to simplify some typical tasks related to the Youtube API.
-See the `samples` directory for examples.
+See the [`samples`](https://github.com/diegoami/youtube3/tree/master/samples)
+directory of the repository for examples.
 
 ## INSTALL
 
 ```
 pip install youtube3
+```
+
+This installs the library. The command-line scripts used below live in the
+[`samples`](https://github.com/diegoami/youtube3/tree/master/samples) folder
+of the repository and are not part of the package: to run them, clone it and
+install it from there:
+
+```
+git clone https://github.com/diegoami/youtube3.git
+cd youtube3
+pip install -e .
 ```
 
 ## USAGE
