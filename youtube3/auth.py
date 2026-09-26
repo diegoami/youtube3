@@ -1,4 +1,5 @@
 import getpass
+import json
 import logging
 import os
 import subprocess
@@ -39,12 +40,26 @@ def obtain_credentials(client_secrets_file, token_file, *, choose_account=False)
     missing, unreadable or could not be refreshed). Only SAVED needs no save.
     """
     token_path = Path(token_file)
-    credentials = None
+    info = None
     if token_path.exists():
         try:
-            credentials = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-        # Empty, truncated, missing fields (ValueError), or JSON that is not an
-        # object such as [] or null (AttributeError); never log its contents.
+            info = json.loads(token_path.read_text(encoding="utf-8"))
+        except ValueError:  # empty or truncated; never log its contents
+            logger.info("The saved token could not be read; logging in again")
+    return credentials_from_info(client_secrets_file, info, choose_account=choose_account)
+
+
+def credentials_from_info(client_secrets_file, info, *, choose_account=False, browser=False):
+    """obtain_credentials for a login already read (the dict a token file holds), or None.
+
+    browser: log in in the browser even when info holds a valid login.
+    """
+    credentials = None
+    if info is not None and not browser:
+        try:
+            credentials = Credentials.from_authorized_user_info(info, SCOPES)
+        # Missing fields (ValueError), or JSON that is not an object such as
+        # [] or null (AttributeError, TypeError); never log its contents.
         except (ValueError, AttributeError, TypeError):
             logger.info("The saved token could not be read; logging in again")
 
@@ -76,14 +91,24 @@ def save_credentials(credentials, token_path):
     owner while still empty, then renamed over the old one; the rename keeps
     the new file's permissions.
     """
-    token_path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(dir=token_path.parent, prefix=f".{token_path.name}.")
+    write_private(token_path, credentials.to_json())
+
+
+def write_private(path, text):
+    """Replace path with text, readable by the owner only; any failure leaves the old file as it was.
+
+    The text goes to a file next to it that is restricted to the owner while
+    still empty, then renamed over the old one in one step.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     os.close(descriptor)
     try:
         restrict_to_owner(temporary)
-        with open(temporary, "w", encoding="utf-8") as token:
-            token.write(credentials.to_json())
-        os.replace(temporary, token_path)
+        with open(temporary, "w", encoding="utf-8") as output:
+            output.write(text)
+        os.replace(temporary, path)
     except BaseException:
         os.unlink(temporary)
         raise

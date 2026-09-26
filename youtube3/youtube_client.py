@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 
@@ -5,7 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from . import profiles
-from .auth import BROWSER, SAVED, load_credentials, obtain_credentials, save_credentials
+from .auth import BROWSER, SAVED, credentials_from_info, load_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
 from .publish import WRITABLE_STATUS, thumbnail_upload, writable
@@ -17,13 +18,19 @@ PAGE_SIZE = 50
 
 
 class YoutubeClient:
-    def __init__(self, client_json_file=None, debug=False, *, token_file=None, service=None, profile=None):
+    def __init__(
+        self, client_json_file=None, debug=False, *, token_file=None, service=None, profile=None, new_login=False
+    ):
         """Log in and build the YouTube client.
 
         client_json_file: the OAuth client secrets file from the Google Cloud
         console. token_file: where the login is saved; by default token.json
         next to the client secrets. service: an already-built client, used
-        instead of logging in. debug is kept for compatibility and unused.
+        instead of logging in. profile: act on that profile's channel (see
+        youtube3.profiles). new_login, with a profile: log in in the browser
+        even when a login is saved (profiles.py add); it replaces the saved
+        one only if it is for the profile's channel. debug is kept for
+        compatibility and unused.
         """
         if profile is not None and token_file is not None:
             raise ValueError("give a profile or a token_file, not both")
@@ -38,27 +45,33 @@ class YoutubeClient:
             self.youtube = service
             self._channel = profiles.verify(profile, service)
         else:
-            self.youtube = self._login_profile(client_json_file, profile)
+            self.youtube = self._login_profile(client_json_file, profile, new_login)
 
-    def _login_profile(self, client_json_file, profile):
-        """Log in to a profile's channel; the login is saved only once its channel checks out.
+    def _login_profile(self, client_json_file, profile, new_login=False):
+        """Log in to a profile's channel.
 
-        A login for another channel never replaces the saved one (#69). The
-        channel is recorded only with a login made now (the browser flow ran),
-        and only after that login is saved, so a record never points past the
-        login beside it (#75). A saved login that is still valid is not
-        rewritten (#76).
+        The profile file is replaced whole, its channel and its login in one
+        step, and only once the login's channel checks out: a login for
+        another channel never replaces the saved one, and a failed or
+        interrupted login leaves the profile as it was. A channel is recorded
+        only with a login made now in the browser. A saved login that is
+        still valid is not rewritten.
         """
-        token_file = profiles.token_path(profile)
-        profiles.make_folder(token_file.parent)
-        profiles.recover(profile)
-        credentials, source = obtain_credentials(client_json_file, token_file, choose_account=True)
+        try:
+            saved = profiles.read(profile)
+        except profiles.ProfileError:
+            if not new_login:
+                raise
+            saved = profiles.Saved(None, None, False)  # profiles.py add repairs an unreadable profile
+        credentials, source = credentials_from_info(
+            client_json_file, saved.credentials, choose_account=True, browser=new_login
+        )
         service = self._build(credentials)
-        self._channel, new_record = profiles.check(profile, service, register=source == BROWSER)
-        if source != SAVED:
-            save_credentials(credentials, token_file)
-        if new_record:
-            profiles.record(profile, self._channel)
+        current = profiles.signed_in_channel(service)
+        channel = profiles.match(profile, saved.channel, current, register=source == BROWSER)
+        if source != SAVED or saved.legacy:
+            profiles.write(profile, channel, json.loads(credentials.to_json()))
+        self._channel = current
         return service
 
     def signed_in_channel(self):

@@ -32,7 +32,7 @@ if __name__ == "__main__":
                 print(f"  {profile['name']:20} {channel}")
         elif args.command == "adopt":
             profiles.check_name(args.name)
-            if profiles.token_path(args.name).exists():
+            if profiles.profile_path(args.name).exists():
                 raise profiles.ProfileError(f"profile {args.name!r} already exists")
             if not args.token_file.exists():
                 raise profiles.ProfileError(f"{args.token_file}: no such token file")
@@ -41,8 +41,7 @@ if __name__ == "__main__":
             print(f"{args.name}: {channel['title']} ({channel['id']})")
         elif args.command == "add":
             # An existing profile keeps its login unless the new one is for its channel.
-            with profiles.replacing_login(args.name):
-                channel = YoutubeClient(args.client_secrets, profile=args.name).signed_in_channel()
+            channel = YoutubeClient(args.client_secrets, profile=args.name, new_login=True).signed_in_channel()
             print(f"{args.name}: {channel['title']} ({channel['id']})")
         else:
             channel = YoutubeClient(args.client_secrets, profile=args.name).signed_in_channel()

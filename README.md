@@ -66,20 +66,20 @@ Then give `--profile NAME` to any sample. It prints **"Signed in as <channel>
 that channel (1 quota unit) and refuses to run otherwise, and names its files
 after the profile: `liked-diego.json`, `liked-diego.html`.
 
+-   Each profile is one file, `~/.config/youtube3/profiles/NAME.json` (on
+    Windows `%APPDATA%\youtube3\profiles\NAME.json`), outside any
+    repository and readable by you only. It holds the channel and its login
+    together, and is only ever replaced whole, by a login whose channel
+    checked out. A login that fails, is interrupted or runs at the same time
+    as another leaves the old profile or the new one, never a mix.
 -   A profile's channel is recorded when its login is made (`add`, `adopt`)
-    and never changed afterwards: a profile whose record is missing or
-    unreadable is refused, not rebound to whatever login it has.
--   `profiles.py add NAME` on an existing profile logs in again. The new
-    login is kept only if it is for the profile's channel; otherwise the
-    old one is put back. The same holds when a saved login has expired and
-    the browser opens by itself, and an `add` that was interrupted is
-    settled on the profile's next use. While one run logs a profile in
-    again, another run on that profile stops with a message instead of
-    interfering.
-
--   Logins are kept in `~/.config/youtube3/profiles/` (on Windows
-    `%APPDATA%\youtube3\profiles\`), outside any repository, readable by you
-    only.
+    and never changed afterwards: a profile with no channel, or an
+    unreadable file, is refused, not rebound to whatever login it has.
+-   `profiles.py add NAME` on an existing profile logs in again, and keeps
+    the new login only if it is for the profile's channel. The same holds
+    when a saved login has expired and the browser opens by itself. `add`
+    also repairs a profile that is refused as unreadable or without a
+    channel.
 -   All channels share one quota: 10,000 units a day for the Cloud project.
 
 ## LIKES

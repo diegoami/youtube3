@@ -55,7 +55,7 @@ def login(monkeypatch, tmp_path):
         if saved is not None:
             token.write_text(TOKEN_JSON)
             monkeypatch.setattr(
-                auth.Credentials, "from_authorized_user_file", lambda path, scopes: saved
+                auth.Credentials, "from_authorized_user_info", lambda info, scopes: saved
             )
         credentials = auth.load_credentials(tmp_path / "my_secrets.json", token)
         return credentials, token
@@ -113,7 +113,7 @@ def test_obtain_says_where_the_login_came_from_and_saves_nothing(monkeypatch, tm
     token = tmp_path / "token.json"
     if saved is not None:
         token.write_text(TOKEN_JSON)
-        monkeypatch.setattr(auth.Credentials, "from_authorized_user_file", lambda path, scopes: saved)
+        monkeypatch.setattr(auth.Credentials, "from_authorized_user_info", lambda info, scopes: saved)
 
     assert auth.obtain_credentials(tmp_path / "s.json", token)[1] == source
     assert token.read_text() == TOKEN_JSON if saved is not None else not token.exists()
