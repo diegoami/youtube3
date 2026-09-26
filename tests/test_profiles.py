@@ -158,7 +158,7 @@ def test_a_client_with_a_profile_checks_its_channel(tmp_path, monkeypatch):
 def test_a_profile_logs_in_to_its_own_token_with_the_account_chooser(tmp_path, monkeypatch):
     monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
     calls = []
-    monkeypatch.setattr("youtube3.youtube_client.load_credentials", lambda s, t, **o: calls.append((t, o)) or "c")
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", lambda s, t, **o: calls.append((t, o)) or (Login("T"), True))
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(DIEGO)[0])
 
     client = YoutubeClient("client_secrets.json", profile="diego")
@@ -225,7 +225,7 @@ def test_an_unreadable_channel_file_is_a_profile_error(tmp_path, content):
 
 def test_a_client_records_the_channel_of_a_new_login_only(tmp_path, monkeypatch):
     monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
-    monkeypatch.setattr("youtube3.youtube_client.load_credentials", fake_login("TOKEN"))
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", fake_login("TOKEN"))
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(CARAMELLA)[0])
 
     YoutubeClient("client_secrets.json", profile="caramellalynx")
@@ -240,7 +240,7 @@ def test_a_client_records_the_channel_of_a_new_login_only(tmp_path, monkeypatch)
 def test_a_new_login_for_another_channel_is_not_kept(tmp_path, monkeypatch):
     monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
     profiles.verify("caramellalynx", service(CARAMELLA)[0], register=True)
-    monkeypatch.setattr("youtube3.youtube_client.load_credentials", fake_login("WRONG"))
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", fake_login("WRONG"))
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(DIEGO)[0])
 
     with pytest.raises(profiles.ProfileError, match="picking CaramellaLynx"):
@@ -255,7 +255,7 @@ def test_logging_in_again_keeps_the_new_login_only_for_the_profiles_channel(tmp_
     monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
     profiles.verify("caramellalynx", service(CARAMELLA)[0], register=True)
     profiles.token_path("caramellalynx").write_text("OLD")
-    monkeypatch.setattr("youtube3.youtube_client.load_credentials", fake_login("NEW"))
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", fake_login("NEW"))
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(answer)[0])
 
     try:
@@ -272,7 +272,7 @@ def test_logging_in_again_keeps_the_new_login_only_for_the_profiles_channel(tmp_
 def test_logging_in_again_with_no_channel_recorded_records_the_new_one(tmp_path, monkeypatch):
     monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
     profiles.token_path("work").write_text("OLD")
-    monkeypatch.setattr("youtube3.youtube_client.load_credentials", fake_login("NEW"))
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", fake_login("NEW"))
     monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(DIEGO)[0])
 
     with profiles.replacing_login("work"):
@@ -282,13 +282,101 @@ def test_logging_in_again_with_no_channel_recorded_records_the_new_one(tmp_path,
     assert profiles.saved_channel("work")["id"] == "UCdiego"
 
 
+class Login:
+    """Credentials whose saved form is token."""
+
+    def __init__(self, token):
+        self.token = token
+
+    def to_json(self):
+        return self.token
+
+
 def fake_login(token):
-    """load_credentials that saves token where the login goes, as a browser login would."""
+    """obtain_credentials: a saved token is used as it is, and a missing one is a fresh browser login."""
 
     def login(secrets, token_file, **options):
         from pathlib import Path
 
-        Path(token_file).write_text(token)
-        return "credentials"
+        return Login(token), not Path(token_file).exists()
 
     return login
+
+
+# From the v2.6.0 review, round 2: a login is saved only once its channel
+# checks out (#69), and an interrupted replacement is settled (#70)
+
+
+class Flow:
+    def run_local_server(self, **kwargs):
+        return Login("FRESH")
+
+
+@pytest.mark.parametrize("answer, saved", [(DIEGO, "{unreadable"), (CARAMELLA, "FRESH")])
+def test_a_fresh_login_replaces_the_saved_one_only_for_the_profiles_channel(tmp_path, monkeypatch, answer, saved):
+    monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
+    profiles.verify("work", service(CARAMELLA)[0], register=True)
+    profiles.token_path("work").write_text("{unreadable")
+    monkeypatch.setattr(auth.InstalledAppFlow, "from_client_secrets_file", lambda *a: Flow())
+    monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(answer)[0])
+
+    try:
+        YoutubeClient(tmp_path / "s.json", profile="work")
+    except profiles.ProfileError as error:
+        assert "picking CaramellaLynx" in str(error) and answer is DIEGO
+
+    assert profiles.token_path("work").read_text() == saved
+    assert profiles.saved_channel("work")["id"] == "UCcaramella"
+
+
+def test_an_interrupted_replacement_gives_the_old_login_back(tmp_path):
+    (tmp_path / ".work.json.previous").write_text("OLD")
+
+    profiles.recover("work", tmp_path)
+
+    assert profiles.token_path("work", tmp_path).read_text() == "OLD"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["work.json"]
+
+
+def test_a_replacement_interrupted_after_saving_keeps_the_new_login(tmp_path):
+    profiles.token_path("work", tmp_path).write_text("NEW")
+    (tmp_path / ".work.json.previous").write_text("OLD")
+
+    profiles.recover("work", tmp_path)
+
+    assert profiles.token_path("work", tmp_path).read_text() == "NEW"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["work.json"]
+
+
+def test_logging_in_again_after_an_interruption_leaves_no_backup(tmp_path):
+    (tmp_path / ".work.json.previous").write_text("OLD")
+
+    with profiles.replacing_login("work", tmp_path):
+        assert not profiles.token_path("work", tmp_path).exists()
+        profiles.token_path("work", tmp_path).write_text("NEW")
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["work.json"]
+
+
+def test_a_client_settles_an_interrupted_replacement_before_logging_in(tmp_path, monkeypatch):
+    monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
+    profiles.verify("work", service(CARAMELLA)[0], register=True)
+    (tmp_path / ".work.json.previous").write_text("OLD")
+    monkeypatch.setattr("youtube3.youtube_client.obtain_credentials", fake_login("OLD"))
+    monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(CARAMELLA)[0])
+
+    YoutubeClient("client_secrets.json", profile="work")
+
+    assert profiles.token_path("work").read_text() == "OLD"
+    assert not (tmp_path / ".work.json.previous").exists()
+
+
+def test_the_first_browser_login_of_a_profile_records_its_channel(tmp_path, monkeypatch):
+    monkeypatch.setattr(profiles, "config_dir", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(auth.InstalledAppFlow, "from_client_secrets_file", lambda *a: Flow())
+    monkeypatch.setattr("youtube3.youtube_client.build", lambda *a, **k: service(CARAMELLA)[0])
+
+    YoutubeClient(tmp_path / "s.json", profile="new")
+
+    assert profiles.saved_channel("new")["id"] == "UCcaramella"
+    assert profiles.token_path("new").read_text() == "FRESH"

@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from . import profiles
-from .auth import load_credentials
+from .auth import load_credentials, obtain_credentials, save_credentials
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
 from .publish import WRITABLE_STATUS, thumbnail_upload, writable
@@ -27,29 +27,33 @@ class YoutubeClient:
         """
         if profile is not None and token_file is not None:
             raise ValueError("give a profile or a token_file, not both")
-        new_login = False
-        if service is None:
-            if client_json_file is None:
-                raise ValueError("client_json_file is required unless a service is passed")
-            if profile is not None:
-                profiles.make_folder(profiles.token_path(profile).parent)
-                token_file = profiles.token_path(profile)
-                new_login = not token_file.exists()
-            service = self.login(client_json_file, token_file, choose_account=profile is not None)
-        self.youtube = service
         self.channel_snippet_map = {}
         self.profile = profile
         self._channel = None
-        if profile is not None:
-            # The login must belong to the profile's channel, recorded only
-            # when the login was just made; a fresh login for another channel
-            # is not kept.
-            try:
-                self._channel = profiles.verify(profile, service, register=new_login)
-            except profiles.ProfileError:
-                if new_login:
-                    token_file.unlink(missing_ok=True)
-                raise
+        if service is None and client_json_file is None:
+            raise ValueError("client_json_file is required unless a service is passed")
+        if profile is None:
+            self.youtube = service if service is not None else self.login(client_json_file, token_file)
+        elif service is not None:
+            self.youtube = service
+            self._channel = profiles.verify(profile, service)
+        else:
+            self.youtube = self._login_profile(client_json_file, profile)
+
+    def _login_profile(self, client_json_file, profile):
+        """Log in to a profile's channel; the login is saved only once its channel checks out.
+
+        The channel is recorded only with a login made now (the browser flow
+        ran), and a login for another channel never replaces the saved one (#69).
+        """
+        token_file = profiles.token_path(profile)
+        profiles.make_folder(token_file.parent)
+        profiles.recover(profile)
+        credentials, fresh = obtain_credentials(client_json_file, token_file, choose_account=True)
+        service = self._build(credentials)
+        self._channel = profiles.verify(profile, service, register=fresh)
+        save_credentials(credentials, token_file)
+        return service
 
     def signed_in_channel(self):
         """{"id", "title"} of the channel this client acts on (1 quota unit, then cached)."""
@@ -60,7 +64,10 @@ class YoutubeClient:
     def login(self, client_json_file, token_file=None, choose_account=False):
         if token_file is None:
             token_file = Path(client_json_file).parent / "token.json"
-        credentials = load_credentials(client_json_file, token_file, choose_account=choose_account)
+        return self._build(load_credentials(client_json_file, token_file, choose_account=choose_account))
+
+    @staticmethod
+    def _build(credentials):
         # The bundled discovery document is used; the file cache needs oauth2client.
         return build("youtube", "v3", credentials=credentials, cache_discovery=False)
 
