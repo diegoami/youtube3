@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube3"
-version = "2.6.1"
+version = "2.6.2"
 description = "Python Youtube v3 API Wrapper"
 readme = "README.md"
 requires-python = ">=3.11"
