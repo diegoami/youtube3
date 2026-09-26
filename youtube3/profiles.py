@@ -2,29 +2,32 @@
 
 A YouTube OAuth token belongs to the one channel chosen on Google's consent
 screen, and the API cannot list the channels someone manages. So each channel
-is logged in once and remembered under a name: its token, and the channel it
-was granted for. The channel is recorded only when the login is created (a
-fresh browser login, or adopt), never later; every use checks that the token
-still belongs to it, so nothing acts on the wrong one.
+is logged in once and remembered under a name, in one file, <name>.json:
+
+    {"channel": {"id", "title", "added_at"}, "credentials": {...the login...}}
+
+The file is only ever replaced whole, in one atomic step, and only by a login
+whose channel checked out. So the channel and the login beside it cannot
+disagree, and a login that fails, is interrupted or runs at the same time as
+another leaves either the old profile or the new one, never a mix of the two.
+Every use checks that the login still belongs to the recorded channel, so
+nothing acts on the wrong one.
 """
 
 import json
 import os
 import re
-import tempfile
-from contextlib import contextmanager
+from collections import namedtuple
 from datetime import datetime, timezone
 from pathlib import Path
 
-try:
-    import fcntl
-except ImportError:  # Windows
-    import msvcrt
-
-from .auth import WINDOWS, restrict_to_owner
-from .likes import write_json_atomically
+from .auth import write_private
 
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+
+# What a profile file holds: the channel (or None), the login (the dict a
+# token file holds, or None), and whether it is still in the v2.6.0 layout.
+Saved = namedtuple("Saved", "channel credentials legacy")
 
 
 class ProfileError(Exception):
@@ -48,37 +51,74 @@ def config_dir(environ=None, windows=None):
     return base / "youtube3" / "profiles"
 
 
-def token_path(name, folder=None):
+def profile_path(name, folder=None):
     return Path(folder or config_dir()) / f"{check_name(name)}.json"
 
 
-def channel_path(name, folder=None):
+def _legacy_channel_path(name, folder=None):
+    """Where v2.6.0 kept the channel, beside a bare token in <name>.json."""
     return Path(folder or config_dir()) / f"{check_name(name)}.channel.json"
+
+
+def _is_channel(channel):
+    return isinstance(channel, dict) and all(isinstance(channel.get(key), str) for key in ("id", "title"))
+
+
+def _unreadable(name, path):
+    return ProfileError(f"profile {name!r}: {path} cannot be read: log in again with profiles.py add {name}")
+
+
+def read(name, folder=None):
+    """The profile as saved (Saved), all None when there is none; ProfileError when it cannot be read."""
+    path = profile_path(name, folder)
+    if not path.exists():
+        return Saved(None, None, False)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise _unreadable(name, path) from None
+    if not isinstance(data, dict):
+        raise _unreadable(name, path)
+    if "credentials" not in data:
+        # v2.6.0: the file is the bare token, and its channel sits beside it.
+        legacy = _legacy_channel_path(name, folder)
+        if not legacy.exists():
+            return Saved(None, data, True)
+        try:
+            channel = json.loads(legacy.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            channel = None
+        if not _is_channel(channel):
+            raise _unreadable(name, legacy)
+        return Saved(channel, data, True)
+    channel, credentials = data.get("channel"), data.get("credentials")
+    if (channel is not None and not _is_channel(channel)) or (credentials is not None and not isinstance(credentials, dict)):
+        raise _unreadable(name, path)
+    return Saved(channel, credentials, False)
 
 
 def saved_channel(name, folder=None):
     """The channel a profile was granted for, or None when none is recorded."""
-    path = channel_path(name, folder)
-    if not path.exists():
-        return None
-    try:
-        with open(path, encoding="utf-8") as saved:
-            channel = json.load(saved)
-    except (OSError, ValueError):
-        channel = None
-    if not (isinstance(channel, dict) and all(isinstance(channel.get(key), str) for key in ("id", "title"))):
-        raise ProfileError(
-            f"profile {name!r}: its channel file {path} cannot be read: remove it, then log in again "
-            f"with profiles.py add {name}"
-        )
-    return channel
+    return read(name, folder).channel
 
 
-def record(name, channel, folder=None, now=None):
-    """Record the channel a profile's login belongs to."""
+def write(name, channel, credentials, folder=None, now=None):
+    """Replace the profile whole, its channel and its login together, readable by the owner only.
+
+    credentials: the dict a token file holds (json.loads(credentials.to_json())).
+    """
     now = now or datetime.now(timezone.utc)
-    record = {"id": channel["id"], "title": channel["title"], "added_at": now.isoformat(timespec="seconds")}
-    write_json_atomically(channel_path(name, folder), record)
+    recorded = {
+        "id": channel["id"],
+        "title": channel["title"],
+        "added_at": channel.get("added_at") or now.isoformat(timespec="seconds"),
+    }
+    path = profile_path(name, folder)
+    make_folder(path.parent)
+    write_private(path, json.dumps({"channel": recorded, "credentials": credentials}, indent=2))
+    # The v2.6.0 channel file, now inside the profile.
+    _legacy_channel_path(name, folder).unlink(missing_ok=True)
+    return path
 
 
 def signed_in_channel(service):
@@ -89,37 +129,34 @@ def signed_in_channel(service):
     return {"id": items[0]["id"], "title": items[0]["snippet"]["title"]}
 
 
-def verify(name, service, folder=None, now=None, *, register=False):
-    """Check that the token belongs to the profile's channel, and return the channel.
+def match(name, saved, current, *, register=False):
+    """The channel record to keep for a login of current, or ProfileError.
 
-    register: the login was just created, so a profile with no channel
-    recorded records this one. Otherwise a missing record is refused (#65),
-    like a token that belongs to another channel: ProfileError, before
-    anything else is done.
+    saved: the recorded channel, or None. register: the login was made now,
+    in the browser, so a profile with no channel recorded takes this one;
+    otherwise a missing record is refused (#65), like a login that belongs to
+    another channel.
     """
-    current, new_record = check(name, service, folder, register=register)
-    if new_record:
-        record(name, current, folder, now)
-    return current
-
-
-def check(name, service, folder=None, *, register=False):
-    """verify without writing: (the channel, whether it is still to be recorded)."""
-    saved = saved_channel(name, folder)
-    current = signed_in_channel(service)
     if saved is None:
         if not register:
             raise ProfileError(
                 f"profile {name!r} has a login but no channel recorded: log in again with profiles.py add {name}"
             )
-        return current, True
+        return current
     if saved["id"] != current["id"]:
         raise ProfileError(
             f"profile {name!r} is for {saved['title']} ({saved['id']}), but its login is for "
             f"{current['title']} ({current['id']}): log in again with profiles.py add {name}, "
             f"picking {saved['title']}"
         )
-    return current, False
+    return saved
+
+
+def verify(name, service, folder=None):
+    """Check that service's login belongs to the profile's channel, and return the channel."""
+    current = signed_in_channel(service)
+    match(name, read(name, folder).channel, current)
+    return current
 
 
 def list_profiles(folder=None):
@@ -132,9 +169,10 @@ def list_profiles(folder=None):
 
 def _listed_channel(name, folder):
     try:
-        return saved_channel(name, folder) or {"id": None, "title": None, "problem": "no channel recorded"}
+        channel = read(name, folder).channel
     except ProfileError:
-        return {"id": None, "title": None, "problem": "its channel file cannot be read"}
+        return {"id": None, "title": None, "problem": "its file cannot be read"}
+    return channel or {"id": None, "title": None, "problem": "no channel recorded"}
 
 
 def adopt(name, token_file, channel, folder=None, now=None):
@@ -142,132 +180,21 @@ def adopt(name, token_file, channel, folder=None, now=None):
 
     channel: {"id", "title"} of the token's channel, from a client built on
     that token (YoutubeClient(..., token_file=token_file).signed_in_channel()).
-    The token is copied, restricted to its owner, and the original is kept.
+    The token is copied into the profile, readable by its owner only, and the
+    original is kept.
     """
-    target = token_path(name, folder)
+    target = profile_path(name, folder)
     if target.exists():
         raise ProfileError(f"profile {name!r} already exists")
     if not Path(token_file).exists():
         raise ProfileError(f"{token_file}: no such token file")
-    make_folder(target.parent)
-    token = Path(token_file).read_bytes()
-    # Restricted while still empty, then filled: the token is never readable by others.
-    descriptor, temporary = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.")
-    os.close(descriptor)
     try:
-        restrict_to_owner(temporary)
-        Path(temporary).write_bytes(token)
-        record(name, channel, folder, now)
-        os.replace(temporary, target)
-    except BaseException:
-        os.unlink(temporary)
-        raise
-    return target
-
-
-# The logins being replaced in this process: their set-aside copy is not a
-# leftover, and their lock is already held.
-_REPLACING = set()
-
-
-def _aside(token):
-    return token.with_name(f".{token.name}.previous")
-
-
-@contextmanager
-def _exclusive(token):
-    """Hold the profile's lock, across processes, or refuse when another run holds it (#77).
-
-    The operating system releases the lock when its process ends, so a
-    crashed run never leaves a profile locked.
-    """
-    with open(token.with_name(f".{token.name}.lock"), "a+b") as handle:
-        handle.seek(0)
-        try:
-            if WINDOWS:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            raise ProfileError(
-                f"profile {token.stem!r} is being logged in again by another run: try again when it is done"
-            ) from None
-        try:
-            yield
-        finally:
-            if WINDOWS:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-
-
-def _settle(token):
-    aside = _aside(token)
-    if not aside.exists():
-        return
-    if token.exists():
-        os.unlink(aside)
-    else:
-        os.replace(aside, token)
-
-
-def recover(name, folder=None):
-    """Settle a login replacement that was interrupted (#70).
-
-    With the login set aside and no new one saved, the old login comes back;
-    with a new one saved (it is saved only once its channel checked out),
-    the old one is dropped. A replacement still running, in this process or
-    another, is left alone: in another, this refuses with ProfileError.
-    """
-    token = token_path(name, folder)
-    if token in _REPLACING or not _aside(token).exists():
-        return
-    with _exclusive(token):
-        _settle(token)
-
-
-def _restore(path, content):
-    """Put a file back as it was: content, or no file when content is None."""
-    if content is None:
-        path.unlink(missing_ok=True)
-    else:
-        descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-        with os.fdopen(descriptor, "wb") as restored:
-            restored.write(content)
-        os.replace(temporary, path)
-
-
-@contextmanager
-def replacing_login(name, folder=None):
-    """Set a profile's login aside while a fresh one is made (profiles.py add on an existing profile).
-
-    When the block fails (an abandoned login, one for another channel, or
-    any error), the old login comes back with the channel record it had
-    (#75). An earlier interrupted replacement is settled first, and another
-    run cannot touch the profile meanwhile (#77).
-    """
-    token = token_path(name, folder)
-    if not token.parent.exists():
-        yield
-        return
-    with _exclusive(token):
-        _settle(token)
-        if not token.exists():
-            yield
-            return
-        channel_file = channel_path(name, folder)
-        channel_before = channel_file.read_bytes() if channel_file.exists() else None
-        aside = _aside(token)
-        os.replace(token, aside)
-        _REPLACING.add(token)
-        try:
-            yield
-        except BaseException:
-            os.replace(aside, token)
-            _restore(channel_file, channel_before)
-            raise
-        finally:
-            _REPLACING.discard(token)
-        os.unlink(aside)
+        credentials = json.loads(Path(token_file).read_text(encoding="utf-8"))
+    except ValueError:
+        credentials = None
+    if not isinstance(credentials, dict):
+        raise ProfileError(f"{token_file}: not a saved login")
+    return write(name, channel, credentials, folder, now)
 
 
 def make_folder(folder):
