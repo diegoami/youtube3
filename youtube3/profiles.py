@@ -132,10 +132,10 @@ def signed_in_channel(service):
 def match(name, saved, current, *, register=False):
     """The channel record to keep for a login of current, or ProfileError.
 
-    saved: the recorded channel, or None. register: the login was made now,
-    in the browser, so a profile with no channel recorded takes this one;
-    otherwise a missing record is refused (#65), like a login that belongs to
-    another channel.
+    saved: the recorded channel, or None. register: the profile is new, or
+    is being logged in again on purpose (profiles.py add), so a profile with
+    no channel recorded takes this one; otherwise a missing record is refused
+    (#65, #82), like a login that belongs to another channel.
     """
     if saved is None:
         if not register:
