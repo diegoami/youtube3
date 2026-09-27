@@ -1,4 +1,4 @@
-from _common import client, parser
+from .common import client, parser
 
 if __name__ == "__main__":
     arguments = parser("Make every video in a playlist public; a dry run unless --apply.")

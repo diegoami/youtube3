@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from _common import DEFAULT_SECRETS
+from .common import DEFAULT_SECRETS
 
 from youtube3 import YoutubeClient, profiles
 

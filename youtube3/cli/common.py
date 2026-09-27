@@ -1,4 +1,4 @@
-"""Shared set-up for the samples: arguments, logging, the client and file names."""
+"""Shared CLI setup: arguments, logging, the client and file names."""
 
 import argparse
 import logging
@@ -6,7 +6,7 @@ from pathlib import Path
 
 from youtube3 import YoutubeClient, profiles
 
-DEFAULT_SECRETS = Path(__file__).parent / "client_secrets.json"
+DEFAULT_SECRETS = profiles.config_dir().parent / "client_secrets.json"
 
 
 def parser(description):
@@ -27,7 +27,7 @@ def parser(description):
 
 
 def add_profile(arguments):
-    arguments.add_argument("--profile", help="the channel to act on, by profile name (see profiles.py)")
+    arguments.add_argument("--profile", help="the channel to act on, by profile name (see youtube3 profiles)")
 
 
 def client(args, quiet=False):

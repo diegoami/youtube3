@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from _common import client, parser
+from .common import client, parser
 
 from youtube3 import publish
 

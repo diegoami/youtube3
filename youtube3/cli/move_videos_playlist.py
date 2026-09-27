@@ -1,4 +1,4 @@
-from _common import client, parser
+from .common import client, parser
 
 if __name__ == "__main__":
     arguments = parser("Move positions start..end-1 of one playlist to another; a dry run unless --apply.")

@@ -1,4 +1,4 @@
-from _common import client, parser
+from .common import client, parser
 
 if __name__ == "__main__":
     arguments = parser("Say whether a video can be watched in a country.")

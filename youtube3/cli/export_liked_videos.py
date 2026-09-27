@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from _common import client, default_path, parser
+from .common import client, default_path, parser
 
 from youtube3 import likes
 

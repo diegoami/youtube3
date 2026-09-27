@@ -125,7 +125,7 @@ def test_an_unreadable_profile_is_a_profile_error(tmp_path, content):
     # From the v2.6.0 review (#66).
     (tmp_path / "work.json").write_text(content)
 
-    with pytest.raises(profiles.ProfileError, match="cannot be read.*profiles.py add work"):
+    with pytest.raises(profiles.ProfileError, match="cannot be read.*youtube3 profiles add work"):
         profiles.read("work", tmp_path)
 
 
@@ -233,7 +233,7 @@ def test_a_profile_with_no_channel_recorded_is_refused_not_rebound(home, tmp_pat
     (tmp_path / "work.json").write_text('{"token": "OLD"}')
     home(DIEGO)
 
-    with pytest.raises(profiles.ProfileError, match="no channel recorded.*profiles.py add work"):
+    with pytest.raises(profiles.ProfileError, match="no channel recorded.*youtube3 profiles add work"):
         YoutubeClient("client_secrets.json", profile="work")
 
     assert (tmp_path / "work.json").read_text() == '{"token": "OLD"}'
@@ -255,19 +255,19 @@ def test_an_automatic_browser_login_for_another_channel_never_replaces_the_profi
 
 def test_an_automatic_browser_login_never_gives_a_channel_to_a_profile_without_one(home, tmp_path, monkeypatch):
     # From the v2.6.1 review, round 3 (#82): only a new profile or
-    # profiles.py add records a channel.
+    # youtube3 profiles add records a channel.
     (tmp_path / "work.json").write_text('{"token": "OLD"}')
     home(DIEGO)
     monkeypatch.setattr("youtube3.youtube_client.credentials_from_info", lambda s, info, **o: (Login("NEW"), auth.BROWSER))
 
-    with pytest.raises(profiles.ProfileError, match="no channel recorded.*profiles.py add work"):
+    with pytest.raises(profiles.ProfileError, match="no channel recorded.*youtube3 profiles add work"):
         YoutubeClient("client_secrets.json", profile="work")
 
     assert (tmp_path / "work.json").read_text() == '{"token": "OLD"}'
     assert files(tmp_path) == ["work.json"]
 
 
-# profiles.py add: logging in again
+# youtube3 profiles add: logging in again
 
 
 @pytest.mark.parametrize("answer, kept", [(CARAMELLA, "NEW"), (DIEGO, "OLD")])
