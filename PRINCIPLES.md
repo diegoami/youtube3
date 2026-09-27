@@ -1,8 +1,9 @@
 # Principles
 
-> Shared by both working modes of the harness. This repository runs the Claude
-> Code mode only and reads this through [`CLAUDE.md`](CLAUDE.md), whose project
-> slot records the owner's amendments to this file. The
+> Shared by both working modes of the harness. This repository runs the OpenCode
+> implementer mode and the Claude Code reviewer mode. The
+> project slot records the owner's amendments to this file in [`AGENTS.md`](AGENTS.md).
+> The
 > ownership map below is authoritative: a non-owning file links to an idea and
 > does not restate it.
 
@@ -16,22 +17,22 @@
 | the verdict protocol: revision scope and target proof, rounds, materiality, reviewer sessions, fallback, waiver, owner decisions, defect path, completion note, merge policy, `design: none` scoping, bootstrap, comment-not-approval | `PRINCIPLES.md` |
 | the OpenCode process: roles, assignment table, reviewer acquisition, the two stages, BLOCK scope, withdraw/re-scope | `AGENTS.md` |
 | the Claude Code process: fresh-context review, same-family default, no design stage, the external-process option | `CLAUDE.md` |
-| the project rules: product, paths, never-echo, the gates table, conventions, one source of truth, decided-not-to-reopen, open work | `CLAUDE.md`, the project slot |
+| the project rules: product, paths, never-echo, the gates table, conventions, one source of truth, decided-not-to-reopen, open work | `AGENTS.md`, the project slot |
 | the iteration overlay and the fork-provenance table | `PLAN.md` |
 | feature requests and artistic license | `ROADMAP.md` |
 | the design-record format | `design/README.md` |
 | the verdict-record format and the signature convention | `reviews/README.md` |
 | the optional verification patterns | `verification/README.md` |
 
-**In this repository** `AGENTS.md`, `PLAN.md`, `design/`, `reviews/` and
+**In this repository** `PLAN.md`, `design/`, `reviews/` and
 `verification/` were not taken, so their rows do not apply; the review records
-live on GitHub (`CLAUDE.md`, owner decisions 2 and 3).
+live on GitHub (`AGENTS.md`, owner decisions 2 and 3).
 
 **The table is authoritative.** A contradiction found between files is recorded
 as a defect and fixed in the change that found it. If the table does not settle
-a sentence that spans two owners, the fallback order is: this file for
-principles and the protocol, `AGENTS.md` for the OpenCode process, `CLAUDE.md`
-for project rules.
+ a sentence that spans two owners, the fallback order is: this file for
+ principles and the protocol, `AGENTS.md` for the OpenCode process and project
+ rules.
 
 ## What counts as non-trivial
 
