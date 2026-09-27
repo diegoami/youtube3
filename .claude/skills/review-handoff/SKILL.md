@@ -10,7 +10,7 @@ independent review"). Proposals and pull requests are not milestones and get
 no prompt; at most say in one line that a review is possible, and write the
 prompt only if the owner asks.
 
-Claude implements; a different model reviews, in whatever tool the owner
+OpenCode implements; a different model reviews, in whatever tool the owner
 picks. At each milestone, give the owner one prompt in a single fenced `text`
 block with nothing else in it. Tell the owner to run it in a **fresh
 session** of that tool: a reused session carries its earlier conclusions. The
@@ -19,9 +19,8 @@ the prompt has to carry everything it needs, and it must not assume a tool.
 
 Pull requests do not wait for the review; the tag does.
 
-This repository has no `AGENTS.md`. The prompt's first line makes the tool
-the reviewer; a tool that reads `CLAUDE.md` on its own finds the same
-handover at the top of its milestone section. If the tool sandboxes network
+The repository's `AGENTS.md` is the implementer's complete process; the
+reviewer's prompt makes the tool the reviewer. If the tool sandboxes network
 access, every `gh` call needs it, and so does the first step, `git fetch`:
 tell the owner to approve those calls when asked. A reviewer's clone is
 often left at the previous tag, and a partial clone cannot read the new
@@ -68,7 +67,8 @@ prompt always fetches before it checks out.
 
 ```text
 You are the independent reviewer for <owner/repo>, working from a
-review-handoff prompt: this prompt defines your job. Claude did this work. Do
+review-handoff prompt: this prompt defines your job. OpenCode did this work.
+Do
 not trust its description, its commit messages or its docs. Verify everything
 against the code.
 
@@ -96,10 +96,10 @@ KNOWN OWNER DECISIONS (not defects):
   do not have and must not look for.
 - <this milestone's own, or "none">
 
-Before anything else, read the repository's CLAUDE.md and PRINCIPLES.md. The
-project slot in CLAUDE.md lists the files you must never read or echo
-(client_secrets*.json, youtube.dat, token.json, Takeout exports, .env*) and
-the gates table. Its principles and rules are the standard.
+Before anything else, read the repository's AGENTS.md, CLAUDE.md and
+PRINCIPLES.md. The project slot in AGENTS.md lists the files you must never
+read or echo (client_secrets*.json, youtube.dat, token.json, Takeout exports,
+.env*) and the gates table. Its principles and rules are the standard.
 
 Run the offline gates yourself, from the gates table (G1 compile, G2 install,
 and the unit tests, lint and CI once they exist), and say what each printed.
