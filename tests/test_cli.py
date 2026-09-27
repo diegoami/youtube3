@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -27,7 +28,8 @@ def test_setup_copies_secrets_to_private_config_path(tmp_path, monkeypatch, caps
 
     destination = config.parent / "client_secrets.json"
     assert destination.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
-    assert destination.stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":
+        assert destination.stat().st_mode & 0o777 == 0o600
     assert str(destination) in capsys.readouterr().out
 
 
