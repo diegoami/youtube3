@@ -1,4 +1,4 @@
-from _common import client, parser
+from .common import client, parser
 
 if __name__ == "__main__":
     args = parser("List the channels you are subscribed to.").parse_args()

@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from _common import add_profile, channel_title, default_path
+from .common import add_profile, channel_title, default_path
 
 from youtube3 import page
 

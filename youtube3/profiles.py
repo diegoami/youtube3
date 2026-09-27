@@ -65,7 +65,7 @@ def _is_channel(channel):
 
 
 def _unreadable(name, path):
-    return ProfileError(f"profile {name!r}: {path} cannot be read: log in again with profiles.py add {name}")
+    return ProfileError(f"profile {name!r}: {path} cannot be read: log in again with youtube3 profiles add {name}")
 
 
 def read(name, folder=None):
@@ -133,20 +133,20 @@ def match(name, saved, current, *, register=False):
     """The channel record to keep for a login of current, or ProfileError.
 
     saved: the recorded channel, or None. register: the profile is new, or
-    is being logged in again on purpose (profiles.py add), so a profile with
+    is being logged in again on purpose (youtube3 profiles add), so a profile with
     no channel recorded takes this one; otherwise a missing record is refused
     (#65, #82), like a login that belongs to another channel.
     """
     if saved is None:
         if not register:
             raise ProfileError(
-                f"profile {name!r} has a login but no channel recorded: log in again with profiles.py add {name}"
+                f"profile {name!r} has a login but no channel recorded: log in again with youtube3 profiles add {name}"
             )
         return current
     if saved["id"] != current["id"]:
         raise ProfileError(
             f"profile {name!r} is for {saved['title']} ({saved['id']}), but its login is for "
-            f"{current['title']} ({current['id']}): log in again with profiles.py add {name}, "
+            f"{current['title']} ({current['id']}): log in again with youtube3 profiles add {name}, "
             f"picking {saved['title']}"
         )
     return saved
@@ -176,7 +176,7 @@ def _listed_channel(name, folder):
 
 
 def adopt(name, token_file, channel, folder=None, now=None):
-    """Make an existing token (like samples/token.json) a profile, without logging in again.
+    """Make an existing token a profile, without logging in again.
 
     channel: {"id", "title"} of the token's channel, from a client built on
     that token (YoutubeClient(..., token_file=token_file).signed_in_channel()).

@@ -28,7 +28,7 @@ class YoutubeClient:
         next to the client secrets. service: an already-built client, used
         instead of logging in. profile: act on that profile's channel (see
         youtube3.profiles). new_login, with a profile: log in in the browser
-        even when a login is saved (profiles.py add); it replaces the saved
+        even when a login is saved (youtube3 profiles add); it replaces the saved
         one only if it is for the profile's channel. debug is kept for
         compatibility and unused.
         """
@@ -54,7 +54,7 @@ class YoutubeClient:
         step, and only once the login's channel checks out: a login for
         another channel never replaces the saved one, and a failed or
         interrupted login leaves the profile as it was. A channel is recorded
-        only for a new profile, or by profiles.py add (new_login): never by a
+        only for a new profile, or by youtube3 profiles add (new_login): never by a
         browser login that opened by itself because the saved one expired
         (#82). A saved login that is still valid is not rewritten.
         """
@@ -64,7 +64,7 @@ class YoutubeClient:
         except profiles.ProfileError:
             if not new_login:
                 raise
-            saved = profiles.Saved(None, None, False)  # profiles.py add repairs an unreadable profile
+            saved = profiles.Saved(None, None, False)  # youtube3 profiles add repairs an unreadable profile
         credentials, source = credentials_from_info(
             client_json_file, saved.credentials, choose_account=True, browser=new_login
         )

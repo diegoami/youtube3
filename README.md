@@ -9,8 +9,8 @@ A wrapper around youtube Apis:
 ## GOAL
 
 I created this package to simplify some typical tasks related to the Youtube API.
-See the [`samples`](https://github.com/diegoami/youtube3/tree/master/samples)
-directory of the repository for examples.
+The installed `youtube3` command provides the common operations; the Python
+API remains available for applications that need more control.
 
 ## INSTALL
 
@@ -18,15 +18,10 @@ directory of the repository for examples.
 pip install youtube3
 ```
 
-This installs the library. The command-line scripts used below live in the
-[`samples`](https://github.com/diegoami/youtube3/tree/master/samples) folder
-of the repository and are not part of the package: to run them, clone it and
-install it from there:
+This installs the library and the `youtube3` command:
 
 ```
-git clone https://github.com/diegoami/youtube3.git
-cd youtube3
-pip install -e .
+youtube3 --help
 ```
 
 ## USAGE
@@ -49,17 +44,27 @@ permissions), and refreshed on later runs; pass
 The library logs what it changes through the `youtube3` logger; call
 `logging.basicConfig(level=logging.INFO)` to see it.
 
-The `samples` directory has one script per operation, for example:
+Set up OAuth client secrets once, then create a profile for the channel or
+brand account you want to use:
 
 ```
-python samples/show_files_in_playlist.py --playlistId <id>
-python samples/move_videos_playlist.py --playlistSource <id> --playlistTarget <id> --start 0 --end 10 --apply
+youtube3 setup path/to/client_secrets.json
+youtube3 profiles add caramellalynx
+youtube3 profiles list
 ```
 
-Each takes `--client-secrets` (default `samples/client_secrets.json`) and
-`--token-file`. The samples that change many things at once (moving,
-removing, publishing, unliking) only show what they would do unless given
-`--apply`.
+Use `youtube3 <command> --help` for all options. Examples:
+
+```
+youtube3 playlist show --playlistId <id>
+youtube3 playlist move --playlistSource <id> --playlistTarget <id> --start 0 --end 10 --apply
+youtube3 likes export --out liked.json
+youtube3 video check <id> --country DE
+```
+
+Operations that change many things (moving, removing, publishing and
+unliking) are dry runs unless given `--apply`. The equivalent Python API is
+documented below and is unchanged.
 
 ## SEVERAL CHANNELS
 
@@ -68,12 +73,12 @@ consent screen, and the API cannot list the channels you manage. So each
 channel is logged in once and saved as a **profile**:
 
 ```
-python samples/profiles.py adopt caramellalynx   # today's samples/token.json, without logging in again
-python samples/profiles.py add diego             # the browser asks which account or brand
-python samples/profiles.py list
+youtube3 profiles adopt caramellalynx   # an existing token, without logging in again
+youtube3 profiles add diego             # the browser asks which account or brand
+youtube3 profiles list
 ```
 
-Then give `--profile NAME` to any sample. It prints **"Signed in as <channel>
+Then give `--profile NAME` to any command. It prints **"Signed in as <channel>
 (<id>)"** before doing anything, checks that the saved login still belongs to
 that channel (1 quota unit) and refuses to run otherwise, and names its files
 after the profile: `liked-diego.json`, `liked-diego.html`.
@@ -87,7 +92,7 @@ after the profile: `liked-diego.json`, `liked-diego.html`.
 -   A profile's channel is recorded when its login is made (`add`, `adopt`)
     and never changed afterwards: a profile with no channel, or an
     unreadable file, is refused, not rebound to whatever login it has.
--   `profiles.py add NAME` on an existing profile logs in again, and keeps
+-   `youtube3 profiles add NAME` on an existing profile logs in again, and keeps
     the new login only if it is for the profile's channel. The same holds
     when a saved login has expired and the browser opens by itself. `add`
     also repairs a profile that is refused as unreadable or without a
@@ -99,10 +104,10 @@ after the profile: `liked-diego.json`, `liked-diego.html`.
 `youtube3.likes` exports your liked videos and unlikes them in bulk, safely:
 
 ```
-python samples/export_liked_videos.py --out liked.json
-python samples/unlike_videos.py --from liked.json --channel "Some Channel" --liked-before 2020-01-01
-python samples/unlike_videos.py --from liked.json --unavailable --apply   # clears deleted and private ones
-python samples/relike_videos.py --from unliked-20260924-120000.json --apply
+youtube3 likes export --out liked.json
+youtube3 likes unlike --from liked.json --channel "Some Channel" --liked-before 2020-01-01
+youtube3 likes unlike --from liked.json --unavailable --apply   # clears deleted and private ones
+youtube3 likes relike --from unliked-20260924-120000.json --apply
 ```
 
 -   The export lists every like, newest first: video id, title, channel, when
@@ -129,7 +134,7 @@ These files are personal data; `.gitignore` keeps them out of git.
 `youtube3.page` turns an export into one web page of your likes:
 
 ```
-python samples/build_liked_page.py --from liked.json --out liked.html
+youtube3 likes page --from liked.json --out liked.html
 ```
 
 Open the file in any browser; it needs no server. It shows every like as a
@@ -150,8 +155,8 @@ Upload the video in YouTube Studio (videos uploaded through an unaudited API
 project are locked private), then set everything else in one command:
 
 ```
-python samples/publish_video.py VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00
-python samples/publish_video.py VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00 --apply
+youtube3 publish VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00
+youtube3 publish VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00 --apply
 ```
 
 -   Without `--apply` it only reads the video and shows each change

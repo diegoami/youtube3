@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from _common import client, parser
-from _rating import run
+from .common import client, parser
+from ._rating import run
 
 from youtube3 import likes
 

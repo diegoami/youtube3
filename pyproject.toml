@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube3"
-version = "2.6.2"
+version = "2.7.0"
 description = "Python Youtube v3 API Wrapper"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,8 +33,11 @@ dev = ["pytest", "ruff", "build", "twine"]
 [project.urls]
 Homepage = "https://github.com/diegoami/youtube3/"
 
+[project.scripts]
+youtube3 = "youtube3.cli.main:main"
+
 [tool.setuptools]
-packages = ["youtube3"]
+packages = { find = { include = ["youtube3*"] } }
 
 [tool.setuptools.package-data]
 youtube3 = ["page_assets/*"]
@@ -45,7 +48,7 @@ xfail_strict = true
 
 [tool.ruff]
 target-version = "py311"
-include = ["youtube3/**/*.py", "samples/**/*.py", "tests/**/*.py"]
+include = ["youtube3/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "B"]
