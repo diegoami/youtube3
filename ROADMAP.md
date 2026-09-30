@@ -20,7 +20,7 @@
 | F-10 | "why do we not ship the samples, and do they still work ?" — "ok do as you suggest" | in progress | Proposal #86: one `youtube3` command that `pip install` provides (profiles, likes, publish, playlists, videos, subscriptions), a dry run for everything that writes, `samples/` removed. Owner chose `youtube3`, removal of `samples/`, and `youtube3 setup` for client secrets. |
 | F-11 | "But would not these be kind of useful is somewhat generalized" (blogspotapi) — "Retire them and park the ideas" | parked | From the retired blogspotapi (archived 2026-09-26): scan HTML, Markdown or a blog export (Blogger, WordPress) for embedded YouTube videos and report the ones deleted, private, region-blocked or not embeddable, using `verify_video`; fixing a post comes later, as a dry run first. Parked by the owner: no current use. Best built as a command after F-10. |
 | F-12 | "But would not these be kind of useful is somewhat generalized" (amaraapi) — "Retire them and park the ideas" | parked | From the retired amaraapi (archived 2026-09-26), through YouTube's own captions API instead of Amara: list, download and upload the captions of your own videos (upload 400 quota units). Parked by the owner: no current use. |
-| F-13 | "get all videos in channel" | requested | |
+| F-13 | "get all videos in channel" | in progress | Proposal #92: `youtube3 channel videos` lists the signed-in profile's uploads (private and unlisted included) to the console and a JSON export. |
 
 ## Statuses
 

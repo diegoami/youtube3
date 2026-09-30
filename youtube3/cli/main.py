@@ -25,6 +25,7 @@ COMMANDS = {
         "publish": "publish_videos_playlist",
     },
     "video": {"info": "retrieve_video_info", "check": "verify_video"},
+    "channel": {"videos": "channel_videos"},
     "subscriptions": {"list": "show_subscribed", "add": "subscribe_channel"},
 }
 

@@ -129,6 +129,24 @@ youtube3 likes relike --from unliked-20260924-120000.json --apply
 
 These files are personal data; `.gitignore` keeps them out of git.
 
+## YOUR CHANNEL
+
+`youtube3.channel` lists every video uploaded to the channel you are signed in
+as (the profile's channel), private and unlisted included:
+
+```
+youtube3 channel videos --out channel.json
+```
+
+-   It prints one line per video, newest upload first: id, published date,
+    privacy, views, duration and title, and writes the same to a JSON export
+    (default `channel.json`, or `channel-<profile>.json`).
+-   Quota: 1 unit per 50 videos for the listing, plus 1 unit per 50 for the
+    privacy, views and duration.
+
+In Python: `youtube3.channel.export_channel_videos(client, path)`, or
+`client.iterate_channel_videos()` for the records themselves.
+
 ## LANDING PAGE
 
 `youtube3.page` turns an export into one web page of your likes:
@@ -205,12 +223,15 @@ The methods of `YoutubeClient`:
 -   `get_channel_id`: Retrieve the ID of a channel that a video belongs to using the video's ID.
 -   `get_subscriptions_channel_ids`: Retrieve one page of the IDs and titles of the channels you are subscribed to.
 -   `get_channels`: Retrieve your own channel's content details.
+-   `uploads_playlist`: Retrieve the id of your own channel's uploads playlist.
+-   `iterate_channel_videos`: Iterate over the videos uploaded to your channel as records (see YOUR CHANNEL), newest first.
 -   `iterate_subscriptions_in_channel`: Iterate over all the channels you are subscribed to.
 -   `liked_channel`: Retrieve the ID of the playlist of your liked videos.
 -   `iterate_liked_videos`: Iterate over your liked videos as records (see LIKES), newest like first.
 -   `playlist_snippet`: Retrieve the snippet information of a playlist using its ID.
 -   `playlist_name`: Retrieve the title of a playlist using its ID.
 -   `videos_in_playlist`: Retrieve one page (up to 50) of the videos in a playlist.
+-   `video_details`: Retrieve one page (up to 50) of videos' snippet, content details, statistics and status, keyed by id.
 -   `iterate_videos_in_playlist`: Iterate over a playlist page by page, at most `maxCount` pages when given.
 -   `delete_from_playlist`: Remove the videos at positions `start` to `end - 1` from a playlist; `apply=False` only lists them. Returns the video ids.
 -   `copy_to_playlist`: Copy the videos at positions `start` to `end - 1` of a playlist to another; `apply=False` only lists them. Returns the video ids.
