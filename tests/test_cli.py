@@ -4,6 +4,7 @@ import sys
 import pytest
 
 from youtube3.cli import main
+from youtube3.cli.common import default_path
 from youtube3.cli.subscribe_channel import subscribe
 
 
@@ -93,3 +94,8 @@ def test_subscribe_is_dry_run_without_apply():
             raise AssertionError("dry run must not write")
 
     assert "Dry run" in subscribe(FakeClient(), "channel", False)
+
+
+def test_invalid_profile_default_output_is_a_cli_error():
+    with pytest.raises(SystemExit, match="^Error:.*profile"):
+        default_path(None, "channel", ".json", "Diego")
