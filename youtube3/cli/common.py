@@ -45,7 +45,12 @@ def client(args, quiet=False):
 
 def default_path(value, stem, suffix, profile):
     """The path given, or <stem>.<suffix> / <stem>-<profile>.<suffix>."""
-    return Path(value) if value else Path(profiles.output_name(stem, suffix, profile))
+    if value:
+        return Path(value)
+    try:
+        return Path(profiles.output_name(stem, suffix, profile))
+    except profiles.ProfileError as error:
+        raise SystemExit(f"Error: {error}") from None
 
 
 def channel_title(profile):

@@ -59,7 +59,7 @@ Use `youtube3 <command> --help` for all options. Examples:
 youtube3 playlist show --playlistId <id>
 youtube3 playlist move --playlistSource <id> --playlistTarget <id> --start 0 --end 10 --apply
 youtube3 likes export --out liked.json
-youtube3 video check <id> --country DE
+youtube3 video check --videoId <id> --country DE
 ```
 
 Operations that change many things (moving, removing, publishing and
@@ -114,12 +114,12 @@ youtube3 likes relike --from unliked-20260924-120000.json --apply
     you liked it, when it was published, a thumbnail, and whether it is still
     available (deleted and private videos stay in your likes). Each export
     reports what changed since the previous one.
--   `unlike_videos.py` selects from an export by channel (id or title),
+-   `youtube3 likes unlike` selects from an export by channel (id or title),
     date, ids or availability; the criteria combine. It shows what it would
     do and changes nothing without `--apply`.
 -   YouTube refuses to rate deleted or private videos, so those are removed
     from the Liked videos playlist instead. They cannot be liked again.
--   An applied run writes `unliked-<time>.json`; `relike_videos.py` replays
+-   An applied run writes `unliked-<time>.json`; `youtube3 likes relike` replays
     it to like the available ones again.
 -   Right after a run, the API can still list a removed like for a moment;
     the export is updated by the run itself.
@@ -276,4 +276,4 @@ pytest
 
 The tests run offline: they build the client over canned responses
 (`tests/conftest.py`) and never touch a real account. The process for changes
-is in `CLAUDE.md`, the requests in `ROADMAP.md`.
+is in `AGENTS.md`, the requests in `ROADMAP.md`.
