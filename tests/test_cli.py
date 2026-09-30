@@ -46,6 +46,7 @@ def test_setup_requires_one_source_path():
         (["youtube3", "publish"], "youtube3.cli.publish_video"),
         (["youtube3", "playlist", "show"], "youtube3.cli.show_files_in_playlist"),
         (["youtube3", "video", "check"], "youtube3.cli.verify_video"),
+        (["youtube3", "channel", "videos"], "youtube3.cli.channel_videos"),
         (["youtube3", "subscriptions", "list"], "youtube3.cli.show_subscribed"),
     ],
 )
@@ -57,6 +58,33 @@ def test_cli_dispatches_commands(monkeypatch, argv, module):
     main.main()
 
     assert called == [(module, "__main__")]
+
+
+def test_channel_videos_prints_each_video_and_writes_the_export(tmp_path, monkeypatch, capsys):
+    class FakeClient:
+        def iterate_channel_videos(self):
+            return [
+                {
+                    "video_id": "v1",
+                    "title": "First",
+                    "published_at": "2024-01-02T00:00:00Z",
+                    "privacy": "public",
+                    "views": 12,
+                    "duration": "PT4M13S",
+                }
+            ]
+
+    export = tmp_path / "channel.json"
+    monkeypatch.setattr(sys, "argv", ["youtube3", "channel", "videos", "--out", str(export)])
+    monkeypatch.setattr("youtube3.cli.common.client", lambda args: FakeClient())
+
+    main.main()
+
+    output = capsys.readouterr().out
+    assert "v1" in output
+    assert "First" in output
+    assert f"1 videos saved to {export}" in output
+    assert export.exists()
 
 
 def test_subscribe_is_dry_run_without_apply():

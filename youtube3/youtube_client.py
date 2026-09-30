@@ -7,6 +7,7 @@ from googleapiclient.errors import HttpError
 
 from . import profiles
 from .auth import SAVED, credentials_from_info, load_credentials
+from .channel import video_record
 from .exceptions import ChannelNotFoundException
 from .likes import LIKES_PLAYLIST, liked_record
 from .publish import WRITABLE_STATUS, thumbnail_upload, writable
@@ -158,6 +159,14 @@ class YoutubeClient:
     def get_channels(self):
         return self.youtube.channels().list(part="contentDetails", mine=True).execute()
 
+    def uploads_playlist(self):
+        """The id of the uploads playlist of the channel this client acts on."""
+        channels = self.get_channels()
+        try:
+            return channels["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        except (KeyError, IndexError):
+            raise ChannelNotFoundException("this channel has no uploads playlist") from None
+
     def iterate_subscriptions_in_channel(self):
         items, nextPageToken = self.get_subscriptions_channel_ids()
         yield from items
@@ -177,6 +186,14 @@ class YoutubeClient:
         for page in self.iterate_videos_in_playlist(LIKES_PLAYLIST):
             for item in page["items"]:
                 yield liked_record(item)
+
+    def iterate_channel_videos(self):
+        """Yield a record per video uploaded to the channel this client acts on, newest first."""
+        for page in self.iterate_videos_in_playlist(self.uploads_playlist()):
+            items = page["items"]
+            details = self.video_details([item["contentDetails"]["videoId"] for item in items])
+            for item in items:
+                yield video_record(item, details.get(item["contentDetails"]["videoId"]))
 
     def playlist_snippet(self, playlistId):
         playlist_result = self.youtube.playlists().list(part="snippet", id=playlistId).execute()
@@ -198,6 +215,18 @@ class YoutubeClient:
             maxResults=PAGE_SIZE,
             pageToken=nextPageToken,
         ).execute()
+
+    def video_details(self, video_ids):
+        """One videos.list call for up to 50 ids: snippet, contentDetails, statistics, status.
+
+        Returns the items keyed by video id.
+        """
+        if not video_ids:
+            return {}
+        result = self.youtube.videos().list(
+            part="snippet,contentDetails,statistics,status", id=",".join(video_ids)
+        ).execute()
+        return {item["id"]: item for item in result.get("items", [])}
 
     def update_status(self, video_id, privacy_status):
         if privacy_status not in ["private", "unlisted", "public"]:
