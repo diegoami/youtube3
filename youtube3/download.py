@@ -1,0 +1,211 @@
+"""Optional public-video downloads, independent of the YouTube Data API."""
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+
+class DownloadError(Exception):
+    """A missing download dependency or a failed media download."""
+
+
+def video_url(value):
+    """Accept a video ID, YouTube watch URL or youtu.be link, selecting one video."""
+    video_id = value
+    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        parsed = urlsplit(value)
+        if parsed.scheme == "https" and parsed.netloc in {
+            "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be",
+        }:
+            if parsed.netloc == "youtu.be":
+                video_id = parsed.path.removeprefix("/")
+            elif parsed.path == "/watch":
+                video_id = parse_qs(parsed.query).get("v", [""])[0]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+            raise ValueError("Expected an 11-character video ID or an HTTPS YouTube watch/youtu.be URL")
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def _backend():
+    try:
+        import yt_dlp
+    except ModuleNotFoundError as error:
+        if error.name != "yt_dlp":
+            raise
+        raise DownloadError('Install download support with: pip install "youtube3[download]"') from None
+    return yt_dlp
+
+
+def _archive_path(output, archive):
+    return Path(archive).expanduser() if archive is not None else output / ".youtube3-download-archive.txt"
+
+
+def _archived_ids(archive):
+    try:
+        lines = archive.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return set()
+    except (OSError, UnicodeError) as error:
+        raise DownloadError(f"Cannot read download archive {archive}: {error}") from None
+    return {line.split()[1] for line in lines if len(line.split()) == 2 and line.split()[0] == "youtube"}
+
+
+def _options(output, quality, archive):
+    if quality is not None and (type(quality) is not int or quality <= 0):
+        raise ValueError("Quality must be a positive integer height in pixels")
+    height = f"[height<={quality}]" if quality else ""
+    return {
+        "format": f"bestvideo{height}+bestaudio/best{height}",
+        "paths": {"home": str(output)},
+        "outtmpl": "%(title).150B [%(id)s].%(ext)s",
+        "noplaylist": True,
+        "overwrites": False,
+        "continuedl": True,
+        "cachedir": False,
+        "download_archive": str(archive),
+    }
+
+
+def download_video(video, output, *, quality=None, dry_run=False, archive=None):
+    """Download one public video; quality is an optional maximum height in pixels.
+
+    A dry run only prints the local plan: no network, backend import or file writes.
+    Existing files are preserved. yt-dlp handles partial-download resumption and
+    records completed IDs in the archive, shared with playlist downloads.
+    """
+    url = video_url(video)
+    destination = Path(output).expanduser()
+    archive = _archive_path(destination, archive)
+    options = _options(destination, quality, archive)
+    if url.split("v=")[-1] in _archived_ids(archive):
+        print(f"Skip {url}: archived in {archive}")
+        return
+    if dry_run:
+        limit = f"at most {quality}p" if quality else "best available quality"
+        print(f"Dry run: download {url} to {destination} ({limit}); availability not checked; archive: {archive}")
+        return
+
+    yt_dlp = _backend()
+    try:
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        with yt_dlp.YoutubeDL(options) as downloader:
+            result = downloader.download([url])
+    except (yt_dlp.utils.DownloadError, OSError) as error:
+        raise DownloadError(str(error)) from None
+    if result:
+        raise DownloadError("yt-dlp could not complete the download")
+
+
+@dataclass(frozen=True)
+class PlaylistEntry:
+    position: int
+    video_id: str | None
+    title: str
+    skip_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class PlaylistPlan:
+    url: str
+    title: str
+    output: Path
+    archive: Path
+    entries: tuple[PlaylistEntry, ...]
+
+
+def playlist_url(value):
+    """Accept a public playlist ID or HTTPS YouTube URL with an explicit list ID."""
+    playlist_id = value
+    if not re.fullmatch(r"[A-Za-z0-9_-]{10,}", playlist_id):
+        parsed = urlsplit(value)
+        if (parsed.scheme == "https"
+                and parsed.netloc in {"youtube.com", "www.youtube.com", "m.youtube.com"}
+                and parsed.path in {"/playlist", "/watch"}):
+            playlist_id = parse_qs(parsed.query).get("list", [""])[0]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{10,}", playlist_id):
+            raise ValueError("Expected a public playlist ID or an HTTPS YouTube URL with list=ID")
+    return f"https://www.youtube.com/playlist?list={playlist_id}"
+
+
+def preview_playlist(playlist, output, *, start=1, end=None, archive=None):
+    """Read playlist metadata and return a fixed selection without writing files.
+
+    Positions are 1-based, inclusive. Unlike a single-video dry run, enumerating
+    a playlist requires read-only network access and the optional yt-dlp extra.
+    """
+    url = playlist_url(playlist)
+    if (type(start) is not int or start < 1
+            or (end is not None and (type(end) is not int or end < start))):
+        raise ValueError("Playlist range must use positive positions with end >= start")
+    destination = Path(output).expanduser()
+    archive = _archive_path(destination, archive)
+    archived = _archived_ids(archive)
+    yt_dlp = _backend()
+    options = {
+        "extract_flat": True,
+        "skip_download": True,
+        "playlist_items": f"{start}:{end if end is not None else ''}",
+        "cachedir": False,
+        "quiet": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(options) as downloader:
+            info = downloader.extract_info(url, download=False)
+            if not info or info.get("_type") not in {"playlist", "multi_video"}:
+                raise DownloadError("Could not read the playlist")
+            selected = []
+            seen = set()
+            for offset, item in enumerate(info.get("entries") or []):
+                item = item or {}
+                video_id = item.get("id")
+                reason = None
+                if (not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id)
+                        or item.get("availability") in {"private", "needs_auth", "premium_only", "subscriber_only"}):
+                    reason = "unavailable"
+                elif video_id in archived:
+                    reason = "archived"
+                elif video_id in seen:
+                    reason = "duplicate"
+                if reason is None:
+                    seen.add(video_id)
+                selected.append(PlaylistEntry(
+                    item.get("playlist_index") or start + offset,
+                    video_id,
+                    item.get("title") or "Unavailable video",
+                    reason,
+                ))
+    except (yt_dlp.utils.DownloadError, OSError) as error:
+        raise DownloadError(str(error)) from None
+    return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected))
+
+
+def download_playlist(plan, *, quality=None):
+    """Download exactly the previewed IDs, preserving their playlist positions.
+
+    yt-dlp records completed IDs after postprocessing succeeds. A failure stops
+    this run; rerunning safely skips completed entries via the shared archive.
+    """
+    options = _options(plan.output, quality, plan.archive)
+    options["outtmpl"] = "%(playlist_index)05d - %(title).150B [%(id)s].%(ext)s"
+    archived = _archived_ids(plan.archive)
+    pending = [entry for entry in plan.entries if entry.skip_reason is None and entry.video_id not in archived]
+    if not pending:
+        return
+    yt_dlp = _backend()
+    try:
+        plan.archive.parent.mkdir(parents=True, exist_ok=True)
+        with yt_dlp.YoutubeDL(options) as downloader:
+            for entry in pending:
+                info = downloader.extract_info(
+                    video_url(entry.video_id), download=True,
+                    extra_info={
+                        "playlist": plan.title,
+                        "playlist_id": parse_qs(urlsplit(plan.url).query)["list"][0],
+                        "playlist_index": entry.position,
+                    },
+                )
+                if info is None and not downloader.in_download_archive({"id": entry.video_id, "ie_key": "Youtube"}):
+                    raise DownloadError(f"Could not download video at playlist position {entry.position}")
+    except (yt_dlp.utils.DownloadError, OSError) as error:
+        raise DownloadError(str(error)) from None

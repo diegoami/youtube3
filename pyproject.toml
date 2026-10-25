@@ -29,6 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "build", "twine"]
+download = ["yt-dlp[default]"]
 
 [project.urls]
 Homepage = "https://github.com/diegoami/youtube3/"
