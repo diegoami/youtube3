@@ -24,6 +24,38 @@ This installs the library and the `youtube3` command:
 youtube3 --help
 ```
 
+## OPTIONAL DOWNLOADS (POC)
+
+Install the optional downloader from this POC checkout:
+
+```bash
+pip install -e ".[download]"
+youtube3 download video VIDEO_ID --dry-run
+youtube3 download video VIDEO_ID --output ./videos --quality 720
+```
+
+This proof of concept downloads one public video, using a video ID, an HTTPS
+YouTube watch URL or a youtu.be link. It uses no Google login, saved profiles or
+browser cookies. A watch link containing a playlist still selects only that video.
+`--quality` limits the height; the actual resolution depends on available formats.
+Existing files are preserved and interrupted downloads can resume.
+After this feature is released, install it with `pip install "youtube3[download]"`.
+
+The base `pip install youtube3` does not install yt-dlp. Download help and
+`--dry-run` also work without the extra. The dry run prints the plan without
+contacting YouTube, checking availability or creating files.
+
+Install the **FFmpeg executable** separately to merge video and audio streams.
+For full YouTube support, yt-dlp also needs a supported JavaScript runtime
+(Deno is recommended upstream); the extra includes its EJS Python component.
+See [yt-dlp's dependency instructions](https://github.com/yt-dlp/yt-dlp#dependencies).
+The extra does not install these external executables. YouTube extraction may
+need yt-dlp updates as the site changes; upgrade with
+`pip install --upgrade "yt-dlp[default]"`.
+
+Playlists, authenticated downloads and audio conversion are outside this POC.
+Media retrieval has not been live-verified; automated tests use an offline backend.
+
 ## USAGE
 
 Create an OAuth client of type "Desktop app" in the Google Cloud console,

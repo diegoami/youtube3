@@ -21,6 +21,7 @@
 | F-11 | "But would not these be kind of useful is somewhat generalized" (blogspotapi) — "Retire them and park the ideas" | parked | From the retired blogspotapi (archived 2026-09-26): scan HTML, Markdown or a blog export (Blogger, WordPress) for embedded YouTube videos and report the ones deleted, private, region-blocked or not embeddable, using `verify_video`; fixing a post comes later, as a dry run first. Parked by the owner: no current use. Best built as a command after F-10. |
 | F-12 | "But would not these be kind of useful is somewhat generalized" (amaraapi) — "Retire them and park the ideas" | parked | From the retired amaraapi (archived 2026-09-26), through YouTube's own captions API instead of Amara: list, download and upload the captions of your own videos (upload 400 quota units). Parked by the owner: no current use. |
 | F-13 | "get all videos in channel" | landed | Proposal #92, PR #93: `youtube3 channel videos` lists the signed-in profile's uploads (private and unlisted included) to the console and a JSON export. Owner G5 read-only check passed, including a fresh-wheel run outside the checkout. |
+| F-14 | "What about adding features for download using youtube-dlp or comparable libraries ?" — "ok let us do a POC" | in progress | Proposal #101: optional `youtube3[download]`, one public video, output folder, quality limit and offline dry run. Playlist and authenticated downloads are deferred. |
 
 ## Statuses
 
