@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -e ".[dev,download]"
       - name: G1 compile
         run: python -m compileall -q youtube3 tests
       - name: G2 lint
@@ -46,5 +46,8 @@ jobs:
           python -m venv "$RUNNER_TEMP/wheel-venv"
           "$RUNNER_TEMP/wheel-venv/bin/pip" install -q "$RUNNER_TEMP"/dist/*.whl
           cd "$RUNNER_TEMP" && wheel-venv/bin/python -c "import youtube3; print(youtube3.YoutubeClient)"
+          # The base wheel must remain usable without the optional downloader.
+          wheel-venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('yt_dlp') is None"
+          wheel-venv/bin/youtube3 download video BaW_jenozKc --dry-run
           # The page's assets must ship in the wheel.
           wheel-venv/bin/python -c "from youtube3 import page; html = page.page_html({'exported_at': None, 'videos': []}); assert 'function selectVideos' in html and '--accent' in html; print('page assets ok')"
