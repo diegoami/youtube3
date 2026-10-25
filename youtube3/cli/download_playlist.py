@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from youtube3.download import DownloadError, download_playlist, preview_playlist
-from youtube3.cli.download_video import positive_height
+from youtube3.cli.download_options import add_media_arguments, media_options, positive_height
 
 
 def main():
@@ -21,10 +21,13 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="download after printing the selection")
     mode.add_argument("--dry-run", action="store_true", help="preview only (default); reads playlist metadata online")
+    add_media_arguments(parser)
     args = parser.parse_args()
+    media = media_options(args, parser)
     try:
-        plan = preview_playlist(args.playlist, args.output, start=args.start, end=args.end, archive=args.archive)
+        plan = preview_playlist(args.playlist, args.output, start=args.start, end=args.end, archive=args.archive, media=media)
         print(f"Playlist: {plan.title}\nOutput: {plan.output}\nArchive: {plan.archive}")
+        print(f"Media: {media.description(args.quality)}")
         for entry in plan.entries:
             action = f"skip: {entry.skip_reason}" if entry.skip_reason else "download"
             print(f"{entry.position:05d} [{action}] {entry.video_id or '-'} {entry.title}")

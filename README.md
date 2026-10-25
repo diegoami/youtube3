@@ -70,6 +70,53 @@ archive across output folders. Its parent folder is created only when downloadin
 The archive is the record of completion: if you delete a media file and want
 to fetch it again, remove its `youtube VIDEO_ID` line from the archive first.
 
+Inspect formats before downloading. This lists format IDs, containers,
+resolutions, codecs and known sizes (`~` marks an estimate); it reads metadata
+online without downloading media or writing files:
+
+```bash
+youtube3 download formats VIDEO_ID
+```
+
+For audio only, keep the native audio container or explicitly convert it:
+
+```bash
+youtube3 download video VIDEO_ID --audio-only --output ./audio
+youtube3 download video VIDEO_ID --audio-only --audio-format mp3 --output ./audio
+youtube3 download playlist PLAYLIST_ID --audio-only --output ./audio
+youtube3 download playlist PLAYLIST_ID --audio-only --output ./audio --apply
+```
+
+Native audio selects an audio-only stream. `--audio-format` supports `mp3`,
+`m4a`, `opus`, `flac` and `wav`, requires `--audio-only`, and checks for the
+FFmpeg and ffprobe executables before downloading. `--quality` applies to
+video and cannot be combined with `--audio-only`. A single-video audio dry
+run works without these tools or the optional downloader.
+
+Audio uses separate default archives: `.youtube3-download-archive-audio-native.txt`
+or `.youtube3-download-archive-audio-FORMAT.txt` in the output folder. Downloading
+a video therefore does not suppress a later audio download. An explicit
+`--archive PATH` continues to deduplicate by video ID regardless of media mode;
+use different custom archive paths when you want both modes.
+
+Save captions, metadata and thumbnails alongside media with opt-in flags,
+supported by both video and playlist commands:
+
+```bash
+youtube3 download video VIDEO_ID --subtitles en,de --write-metadata --write-thumbnail
+youtube3 download playlist PLAYLIST_ID --subtitles en --auto-subtitles --write-metadata --apply
+```
+
+`--subtitles` takes comma-separated language codes, such as `en,de,pt-BR`.
+`--auto-subtitles` also permits automatic captions for those languages; manual
+captions take priority when both exist. Available captions are saved separately
+in VTT format when offered, otherwise the best available subtitle format.
+Missing caption languages or thumbnails are reported by yt-dlp and do not
+prevent the media download. Metadata is saved as `.info.json`; thumbnails use
+their supplied image format. These flags do not add sidecars to an ID already
+in the archive: use a new `--archive PATH` to revisit it. Existing files are
+preserved.
+
 The base `pip install youtube3` does not install yt-dlp. Download help and
 the single-video `--dry-run` also work without the extra. That dry run prints
 the plan without contacting YouTube, checking availability or creating files.
@@ -82,9 +129,10 @@ The extra does not install these external executables. YouTube extraction may
 need yt-dlp updates as the site changes; upgrade with
 `pip install --upgrade "yt-dlp[default]"`.
 
-Authenticated downloads and audio conversion are outside this feature.
+Authenticated downloads are outside this feature.
 Media retrieval from YouTube has not been live-verified; automated tests use
-canned metadata and local media transport, including checks with real yt-dlp.
+canned metadata and local media transport, including checks with real yt-dlp
+and conversion of generated audio with FFmpeg when available.
 
 ## USAGE
 

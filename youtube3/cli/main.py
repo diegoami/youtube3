@@ -10,7 +10,7 @@ from ..auth import write_private
 
 
 COMMANDS = {
-    "download": {"video": "download_video", "playlist": "download_playlist"},
+    "download": {"video": "download_video", "playlist": "download_playlist", "formats": "download_formats"},
     "profiles": "profiles",
     "likes": {
         "export": "export_liked_videos",
