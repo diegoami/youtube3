@@ -23,6 +23,7 @@
 | F-13 | "get all videos in channel" | landed | Proposal #92, PR #93: `youtube3 channel videos` lists the signed-in profile's uploads (private and unlisted included) to the console and a JSON export. Owner G5 read-only check passed, including a fresh-wheel run outside the checkout. |
 | F-14 | "What about adding features for download using youtube-dlp or comparable libraries ?" — "ok let us do a POC" | landed | Proposal #101, PR #102: optional `youtube3[download]`, one public video, output folder, quality limit and offline dry run. Playlist support follows in F-15; authenticated downloads remain deferred. |
 | F-15 | "yes do it, review only when reaching a milestone, do you have the review release skill ?" | landed | Proposal #103, PR #102: public playlist downloads with a default preview, 1-based inclusive ranges, ordered filenames and a completed-ID archive shared with single-video downloads. Review remains at milestones. |
+| F-16 | "ok continue with other fetaures" | landed | Proposal #104: audio-only downloads and conversion, read-only format previews, selected subtitles/automatic captions and opt-in JSON metadata/thumbnail sidecars. Separate default archives for audio modes. Review remains at milestones. |
 
 ## Statuses
 

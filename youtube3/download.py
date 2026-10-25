@@ -1,6 +1,7 @@
 """Optional public-video downloads, independent of the YouTube Data API."""
 
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -8,6 +9,45 @@ from urllib.parse import parse_qs, urlsplit
 
 class DownloadError(Exception):
     """A missing download dependency or a failed media download."""
+
+
+@dataclass(frozen=True)
+class MediaOptions:
+    """Opt-in audio and sidecar settings shared by video and playlist downloads."""
+
+    audio_only: bool = False
+    audio_format: str | None = None
+    subtitles: tuple[str, ...] = ()
+    auto_subtitles: bool = False
+    write_metadata: bool = False
+    write_thumbnail: bool = False
+
+    def __post_init__(self):
+        if self.audio_format is not None:
+            if not self.audio_only:
+                raise ValueError("--audio-format requires --audio-only")
+            if self.audio_format not in {"mp3", "m4a", "opus", "flac", "wav"}:
+                raise ValueError("Audio format must be mp3, m4a, opus, flac or wav")
+        if isinstance(self.subtitles, str) or any(
+            not isinstance(language, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", language)
+            for language in self.subtitles
+        ):
+            raise ValueError("Subtitle languages must be language codes such as en or de")
+        object.__setattr__(self, "subtitles", tuple(self.subtitles))
+        if self.auto_subtitles and not self.subtitles:
+            raise ValueError("--auto-subtitles requires --subtitles with explicit languages")
+
+    def description(self, quality=None):
+        parts = [f"audio only ({self.audio_format or 'native'})" if self.audio_only else (
+            f"video at most {quality}p" if quality else "best available video"
+        )]
+        if self.subtitles:
+            parts.append("subtitles=" + ",".join(self.subtitles) + (" (including automatic)" if self.auto_subtitles else ""))
+        if self.write_metadata:
+            parts.append("metadata JSON")
+        if self.write_thumbnail:
+            parts.append("thumbnail")
+        return "; ".join(parts)
 
 
 def video_url(value):
@@ -37,8 +77,9 @@ def _backend():
     return yt_dlp
 
 
-def _archive_path(output, archive):
-    return Path(archive).expanduser() if archive is not None else output / ".youtube3-download-archive.txt"
+def _archive_path(output, archive, media):
+    suffix = f"-audio-{media.audio_format or 'native'}" if media.audio_only else ""
+    return Path(archive).expanduser() if archive is not None else output / f".youtube3-download-archive{suffix}.txt"
 
 
 def _archived_ids(archive):
@@ -51,11 +92,13 @@ def _archived_ids(archive):
     return {line.split()[1] for line in lines if len(line.split()) == 2 and line.split()[0] == "youtube"}
 
 
-def _options(output, quality, archive):
+def _options(output, quality, archive, media):
     if quality is not None and (type(quality) is not int or quality <= 0):
         raise ValueError("Quality must be a positive integer height in pixels")
+    if media.audio_only and quality is not None:
+        raise ValueError("--quality cannot be combined with --audio-only")
     height = f"[height<={quality}]" if quality else ""
-    return {
+    options = {
         "format": f"bestvideo{height}+bestaudio/best{height}",
         "paths": {"home": str(output)},
         "outtmpl": "%(title).150B [%(id)s].%(ext)s",
@@ -65,9 +108,27 @@ def _options(output, quality, archive):
         "cachedir": False,
         "download_archive": str(archive),
     }
+    if media.audio_only:
+        # Native audio deliberately has no combined video fallback.
+        options["format"] = "bestaudio/best" if media.audio_format else "bestaudio"
+    if media.audio_format:
+        options["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": media.audio_format}]
+    if media.subtitles:
+        options.update(writesubtitles=True, writeautomaticsub=media.auto_subtitles,
+                       subtitleslangs=list(media.subtitles), subtitlesformat="vtt/best")
+    if media.write_metadata:
+        options.update(writeinfojson=True, clean_infojson=True)
+    if media.write_thumbnail:
+        options["writethumbnail"] = True
+    return options
 
 
-def download_video(video, output, *, quality=None, dry_run=False, archive=None):
+def _require_audio_tools(media):
+    if media.audio_format and (not shutil.which("ffmpeg") or not shutil.which("ffprobe")):
+        raise DownloadError("Audio conversion requires the FFmpeg and ffprobe executables on PATH")
+
+
+def download_video(video, output, *, quality=None, dry_run=False, archive=None, media=None):
     """Download one public video; quality is an optional maximum height in pixels.
 
     A dry run only prints the local plan: no network, backend import or file writes.
@@ -75,17 +136,19 @@ def download_video(video, output, *, quality=None, dry_run=False, archive=None):
     records completed IDs in the archive, shared with playlist downloads.
     """
     url = video_url(video)
+    media = media or MediaOptions()
     destination = Path(output).expanduser()
-    archive = _archive_path(destination, archive)
-    options = _options(destination, quality, archive)
+    archive = _archive_path(destination, archive, media)
+    options = _options(destination, quality, archive, media)
     if url.split("v=")[-1] in _archived_ids(archive):
         print(f"Skip {url}: archived in {archive}")
         return
     if dry_run:
-        limit = f"at most {quality}p" if quality else "best available quality"
-        print(f"Dry run: download {url} to {destination} ({limit}); availability not checked; archive: {archive}")
+        print(f"Dry run: download {url} to {destination} ({media.description(quality)}); "
+              f"availability not checked; archive: {archive}")
         return
 
+    _require_audio_tools(media)
     yt_dlp = _backend()
     try:
         archive.parent.mkdir(parents=True, exist_ok=True)
@@ -112,6 +175,7 @@ class PlaylistPlan:
     output: Path
     archive: Path
     entries: tuple[PlaylistEntry, ...]
+    media: MediaOptions = MediaOptions()
 
 
 def playlist_url(value):
@@ -128,18 +192,19 @@ def playlist_url(value):
     return f"https://www.youtube.com/playlist?list={playlist_id}"
 
 
-def preview_playlist(playlist, output, *, start=1, end=None, archive=None):
+def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media=None):
     """Read playlist metadata and return a fixed selection without writing files.
 
     Positions are 1-based, inclusive. Unlike a single-video dry run, enumerating
     a playlist requires read-only network access and the optional yt-dlp extra.
     """
     url = playlist_url(playlist)
+    media = media or MediaOptions()
     if (type(start) is not int or start < 1
             or (end is not None and (type(end) is not int or end < start))):
         raise ValueError("Playlist range must use positive positions with end >= start")
     destination = Path(output).expanduser()
-    archive = _archive_path(destination, archive)
+    archive = _archive_path(destination, archive, media)
     archived = _archived_ids(archive)
     yt_dlp = _backend()
     options = {
@@ -177,7 +242,7 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None):
                 ))
     except (yt_dlp.utils.DownloadError, OSError) as error:
         raise DownloadError(str(error)) from None
-    return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected))
+    return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected), media)
 
 
 def download_playlist(plan, *, quality=None):
@@ -186,12 +251,13 @@ def download_playlist(plan, *, quality=None):
     yt-dlp records completed IDs after postprocessing succeeds. A failure stops
     this run; rerunning safely skips completed entries via the shared archive.
     """
-    options = _options(plan.output, quality, plan.archive)
+    options = _options(plan.output, quality, plan.archive, plan.media)
     options["outtmpl"] = "%(playlist_index)05d - %(title).150B [%(id)s].%(ext)s"
     archived = _archived_ids(plan.archive)
     pending = [entry for entry in plan.entries if entry.skip_reason is None and entry.video_id not in archived]
     if not pending:
         return
+    _require_audio_tools(plan.media)
     yt_dlp = _backend()
     try:
         plan.archive.parent.mkdir(parents=True, exist_ok=True)
@@ -207,5 +273,23 @@ def download_playlist(plan, *, quality=None):
                 )
                 if info is None and not downloader.in_download_archive({"id": entry.video_id, "ie_key": "Youtube"}):
                     raise DownloadError(f"Could not download video at playlist position {entry.position}")
+    except (yt_dlp.utils.DownloadError, OSError) as error:
+        raise DownloadError(str(error)) from None
+
+
+def list_formats(video):
+    """Read available formats without media/file writes, returning display fields only."""
+    url = video_url(video)
+    yt_dlp = _backend()
+    options = {"skip_download": True, "noplaylist": True, "quiet": True,
+               "cachedir": False, "ignore_no_formats_error": True}
+    try:
+        with yt_dlp.YoutubeDL(options) as downloader:
+            info = downloader.extract_info(url, download=False)
+            if not info:
+                raise DownloadError("Could not read video formats")
+            fields = ("format_id", "ext", "resolution", "width", "height", "vcodec", "acodec",
+                      "filesize", "filesize_approx")
+            return [{field: item.get(field) for field in fields} for item in info.get("formats") or []]
     except (yt_dlp.utils.DownloadError, OSError) as error:
         raise DownloadError(str(error)) from None
