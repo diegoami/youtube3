@@ -33,7 +33,7 @@ class BatchResult:
 
 def _payload(plan, quality, entries):
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "playlist_url": plan.url,
         "playlist_title": plan.title,
         "output": str(plan.output.resolve()),
@@ -118,11 +118,11 @@ def retry_plan(report):
         raise download.DownloadError(f"Cannot read download report: {error}") from None
     try:
         version = payload["schema_version"]
-        if type(version) is not int or version not in {1, 2}:
+        if type(version) is not int or version not in {1, 2, 3}:
             raise ValueError("Unsupported report version")
         if version == 1 and "transfer" in payload:
             raise ValueError("Transfer settings require report version 2")
-        transfer = download.TransferOptions(**payload["transfer"]) if version == 2 else download.TransferOptions()
+        transfer = download.TransferOptions(**payload["transfer"]) if version >= 2 else download.TransferOptions()
         url = payload["playlist_url"]
         if not isinstance(url, str) or download.playlist_url(url) != url:
             raise ValueError("Invalid playlist URL")
@@ -133,6 +133,8 @@ def retry_plan(report):
         if any(not isinstance(path, str) or not Path(path).is_absolute() for path in paths):
             raise ValueError("Report paths must be absolute paths on this system")
         media_data = payload["media"]
+        if version < 3 and media_data.get("format_id") is not None:
+            raise ValueError("Exact format selection requires report version 3")
         if any(type(media_data[key]) is not bool
                for key in ("audio_only", "auto_subtitles", "write_metadata", "write_thumbnail")):
             raise ValueError("Invalid media flags")

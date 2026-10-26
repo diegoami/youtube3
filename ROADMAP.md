@@ -26,6 +26,7 @@
 | F-16 | "ok continue with other fetaures" | landed | Proposal #104: audio-only downloads and conversion, read-only format previews, selected subtitles/automatic captions and opt-in JSON metadata/thumbnail sidecars. Separate default archives for audio modes. Review remains at milestones. |
 | F-17 | "resume" (from checkpoint #106) | landed | Proposal #107: optional playlist continuation, checkpointed JSON results and offline previews/retries of failed IDs with their original settings and positions. Review remains at milestones. |
 | F-18 | "cotinue" | landed | Proposal #109: optional media bandwidth cap and HTTP/fragment retry counts, displayed in previews and preserved through batch reports/retries. Existing reports retain default settings. Review remains at milestones. |
+| F-19 | "continue" | landed | Proposal #111: exact stream IDs or a video-only/audio-only pair, separate filenames/default archives, FFmpeg merge checks and preserved choices in reports/retries. Existing reports remain readable. Review remains at milestones. |
 
 ## Statuses
 

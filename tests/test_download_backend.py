@@ -24,7 +24,8 @@ def local_backend(monkeypatch):
     from yt_dlp.extractor.common import InfoExtractor
 
     state = {"fetched": [], "fail": None, "title": "Original title", "media_formats": [],
-             "asset_reads": [], "audio_bytes": None, "native_dl": yt_dlp.YoutubeDL.dl}
+             "asset_reads": [], "audio_bytes": None, "video_bytes": None,
+             "extra_formats": [], "native_dl": yt_dlp.YoutubeDL.dl}
 
     class YoutubeIE(InfoExtractor):
         _VALID_URL = r"https://www\.youtube\.com/watch\?v=(?P<id>[A-Za-z0-9_-]{11})"
@@ -42,7 +43,7 @@ def local_backend(monkeypatch):
                 }, {
                     "format_id": "audio", "ext": "m4a", "vcodec": "none", "acodec": "mp4a.40.2",
                     "url": f"https://example.invalid/{video_id}.m4a",
-                }],
+                }] + state["extra_formats"],
                 "subtitles": {"en": [{"ext": "vtt", "data": "WEBVTT\n\n00:00.000 --> 00:01.000\nCaption\n"}]},
                 "automatic_captions": {"de": [{"ext": "vtt", "data": "WEBVTT\n\n00:00.000 --> 00:01.000\nAuto caption\n"}]},
                 "thumbnail": "https://example.invalid/thumbnail.jpg",
@@ -76,7 +77,7 @@ def local_backend(monkeypatch):
         if info["id"] == state["fail"]:
             raise yt_dlp.utils.DownloadError("Offline media failure")
         state["media_formats"].append(info["format_id"])
-        content = state["audio_bytes"] if info.get("vcodec") == "none" else None
+        content = state["audio_bytes"] if info.get("vcodec") == "none" else state["video_bytes"]
         Path(name).write_bytes(content or b"offline-media-fixture")
         return True, True
 
@@ -191,7 +192,8 @@ def test_real_backend_sidecars_are_disabled_by_default(tmp_path, local_backend):
     assert local_backend["asset_reads"] == []
 
 
-def test_real_ffmpeg_converts_generated_audio_and_records_completion(tmp_path, local_backend):
+@pytest.mark.parametrize("format_id", [None, "audio"])
+def test_real_ffmpeg_converts_generated_audio_and_records_completion(tmp_path, local_backend, format_id):
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
         pytest.skip("Actual conversion check requires FFmpeg and ffprobe")
@@ -201,14 +203,16 @@ def test_real_ffmpeg_converts_generated_audio_and_records_completion(tmp_path, l
     local_backend["audio_bytes"] = sample.read_bytes()
     output = tmp_path / "converted"
 
-    download.download_video(VIDEO_IDS[0], output, media=download.MediaOptions(audio_only=True, audio_format="mp3"))
+    download.download_video(VIDEO_IDS[0], output, media=download.MediaOptions(
+        audio_only=True, audio_format="mp3", format_id=format_id))
 
     converted = next(output.glob("*.mp3"))
     probe = subprocess.run([ffprobe, "-v", "error", "-show_streams", "-of", "json", str(converted)],
                            check=True, capture_output=True, text=True)
     streams = json.loads(probe.stdout)["streams"]
     assert [(stream["codec_type"], stream["codec_name"]) for stream in streams] == [("audio", "mp3")]
-    assert (output / ".youtube3-download-archive-audio-mp3.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
+    suffix = "-format-audio" if format_id else ""
+    assert (output / f".youtube3-download-archive-audio-mp3{suffix}.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
 
 
 def test_batch_continues_then_retries_only_failure_with_saved_settings(tmp_path, local_backend, monkeypatch):
@@ -438,7 +442,7 @@ def test_playlist_limits_are_saved_and_reused_by_retry(tmp_path, local_backend, 
     assert error.value.code == 1
     assert "rate limit 512000 bytes/s" in capsys.readouterr().out
     payload = json.loads(report.read_text())
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["transfer"] == {"limit_rate": 512000, "retries": 0, "fragment_retries": 3}
     plan, quality = batch.retry_plan(report)
     local_backend["fail"] = None
@@ -455,3 +459,96 @@ def test_playlist_limits_are_saved_and_reused_by_retry(tmp_path, local_backend, 
     assert not result.failed
     assert local_backend["fetched"] == [VIDEO_IDS[1]]
     assert options == [(512000, 0, 3)]
+
+
+def test_exact_choices_use_separate_files_and_archives_from_previous_downloads(tmp_path, local_backend):
+    local_backend["extra_formats"] = [{
+        "format_id": "360", "height": 360, "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a",
+        "url": "https://example.invalid/lower.mp4",
+    }]
+    download.download_video(VIDEO_IDS[0], tmp_path)
+    for format_id in ("720", "360"):
+        download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(format_id=format_id))
+    assert local_backend["media_formats"] == ["720", "720", "360"]
+    assert len(list(tmp_path.glob("*.mp4"))) == 3
+    assert len(list(tmp_path.glob("*format-360*.mp4"))) == 1
+    assert len(list(tmp_path.glob("*format-720*.mp4"))) == 1
+    assert (tmp_path / ".youtube3-download-archive-format-360.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
+    local_backend["fetched"].clear()
+    download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(format_id="360"))
+    assert local_backend["fetched"] == []
+
+
+@pytest.mark.parametrize("format_id", ["missing", "best"])
+def test_exact_id_is_literal_and_has_no_fallback(tmp_path, local_backend, format_id):
+    with pytest.raises(download.DownloadError, match="format"):
+        download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(format_id=format_id))
+    assert not local_backend["media_formats"]
+    assert not list(tmp_path.iterdir())
+
+
+def test_audio_only_exact_selection_rejects_a_combined_stream(tmp_path, local_backend):
+    download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(audio_only=True, format_id="audio"))
+    assert local_backend["media_formats"] == ["audio"]
+    with pytest.raises(download.DownloadError, match="format"):
+        download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(audio_only=True, format_id="720"))
+    assert local_backend["media_formats"] == ["audio"]
+
+
+@pytest.mark.parametrize("format_id", ["audio+720", "720+audio"])
+def test_exact_pair_requires_video_only_then_audio_only(tmp_path, local_backend, monkeypatch, format_id):
+    monkeypatch.setattr(download.shutil, "which", lambda name: "/synthetic/" + name)
+    with pytest.raises(download.DownloadError, match="format"):
+        download.download_video(VIDEO_IDS[0], tmp_path, media=download.MediaOptions(format_id=format_id))
+    assert not local_backend["media_formats"]
+    assert not list(tmp_path.iterdir())
+
+
+def test_exact_playlist_choice_survives_failed_report_and_retry(tmp_path, local_backend, monkeypatch, capsys):
+    report = tmp_path / "first.json"
+    local_backend["fail"] = VIDEO_IDS[1]
+    monkeypatch.setattr(sys, "argv", ["youtube3", "download", "playlist", PLAYLIST, "--apply",
+                                     "--output", str(tmp_path / "media"), "--format-id", "720",
+                                     "--continue-on-error", "--report", str(report)])
+    with pytest.raises(SystemExit) as error:
+        main.main()
+    assert error.value.code == 1
+    assert "exact format 720" in capsys.readouterr().out
+    payload = json.loads(report.read_text())
+    assert payload["schema_version"] == 3
+    assert payload["media"]["format_id"] == "720"
+    plan, quality = batch.retry_plan(report)
+    local_backend["fail"] = None
+    local_backend["media_formats"].clear()
+    result = batch.download_batch(plan, quality=quality)
+    assert not result.failed
+    assert local_backend["media_formats"] == ["720"]
+    assert len(list(plan.output.glob("00002 - *format-720*.mp4"))) == 1
+
+
+def test_real_ffmpeg_merges_exact_generated_video_and_audio(tmp_path, local_backend):
+    ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
+    if not ffmpeg or not ffprobe:
+        pytest.skip("Actual merge check requires FFmpeg and ffprobe")
+    video, audio = tmp_path / "sample.mp4", tmp_path / "sample.m4a"
+    subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "color=c=black:s=16x16:r=10:d=0.2", "-an", "-c:v", "mpeg4", str(video)],
+                   check=True, capture_output=True)
+    subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "sine=frequency=440:duration=0.2", "-c:a", "aac", str(audio)], check=True, capture_output=True)
+    local_backend["video_bytes"] = video.read_bytes()
+    local_backend["audio_bytes"] = audio.read_bytes()
+    local_backend["extra_formats"] = [{
+        "format_id": "silent", "height": 16, "width": 16, "ext": "mp4", "vcodec": "mpeg4", "acodec": "none",
+        "url": "https://example.invalid/silent.mp4",
+    }]
+    output = tmp_path / "merged"
+    download.download_video(VIDEO_IDS[0], output, media=download.MediaOptions(format_id="silent+audio"))
+    assert local_backend["media_formats"] == ["silent", "audio"]
+    merged = next(output.glob("*format-silent+audio*.mp4"))
+    probe = subprocess.run([ffprobe, "-v", "error", "-show_streams", "-of", "json", str(merged)],
+                           check=True, capture_output=True, text=True)
+    streams = json.loads(probe.stdout)["streams"]
+    assert {(stream["codec_type"], stream["codec_name"]) for stream in streams} == {
+        ("video", "mpeg4"), ("audio", "aac")}
+    assert (output / ".youtube3-download-archive-format-silent+audio.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
