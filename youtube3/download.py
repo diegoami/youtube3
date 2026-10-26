@@ -12,6 +12,39 @@ class DownloadError(Exception):
 
 
 @dataclass(frozen=True)
+class TransferOptions:
+    """Optional media transfer limits; None leaves each backend default intact."""
+
+    limit_rate: int | None = None
+    retries: int | None = None
+    fragment_retries: int | None = None
+
+    def __post_init__(self):
+        if self.limit_rate is not None and (type(self.limit_rate) is not int or self.limit_rate <= 0):
+            raise ValueError("Rate limit must be a positive integer number of bytes per second")
+        for name in ("retries", "fragment_retries"):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError(f"{name.replace('_', ' ').capitalize()} must be a nonnegative integer")
+
+    def backend_options(self):
+        return {key: value for key, value in (
+            ("ratelimit", self.limit_rate), ("retries", self.retries),
+            ("fragment_retries", self.fragment_retries),
+        ) if value is not None}
+
+    def description(self):
+        parts = []
+        if self.limit_rate is not None:
+            parts.append(f"rate limit {self.limit_rate} bytes/s")
+        if self.retries is not None:
+            parts.append(f"HTTP retries {self.retries}")
+        if self.fragment_retries is not None:
+            parts.append(f"fragment retries {self.fragment_retries}")
+        return "; ".join(parts) or "yt-dlp defaults"
+
+
+@dataclass(frozen=True)
 class MediaOptions:
     """Opt-in audio and sidecar settings shared by video and playlist downloads."""
 
@@ -92,7 +125,7 @@ def _archived_ids(archive):
     return {line.split()[1] for line in lines if len(line.split()) == 2 and line.split()[0] == "youtube"}
 
 
-def _options(output, quality, archive, media):
+def _options(output, quality, archive, media, transfer=None):
     if quality is not None and (type(quality) is not int or quality <= 0):
         raise ValueError("Quality must be a positive integer height in pixels")
     if media.audio_only and quality is not None:
@@ -120,6 +153,7 @@ def _options(output, quality, archive, media):
         options.update(writeinfojson=True, clean_infojson=True)
     if media.write_thumbnail:
         options["writethumbnail"] = True
+    options.update((transfer or TransferOptions()).backend_options())
     return options
 
 
@@ -128,7 +162,7 @@ def _require_audio_tools(media):
         raise DownloadError("Audio conversion requires the FFmpeg and ffprobe executables on PATH")
 
 
-def download_video(video, output, *, quality=None, dry_run=False, archive=None, media=None):
+def download_video(video, output, *, quality=None, dry_run=False, archive=None, media=None, transfer=None):
     """Download one public video; quality is an optional maximum height in pixels.
 
     A dry run only prints the local plan: no network, backend import or file writes.
@@ -137,15 +171,16 @@ def download_video(video, output, *, quality=None, dry_run=False, archive=None, 
     """
     url = video_url(video)
     media = media or MediaOptions()
+    transfer = transfer or TransferOptions()
     destination = Path(output).expanduser()
     archive = _archive_path(destination, archive, media)
-    options = _options(destination, quality, archive, media)
+    options = _options(destination, quality, archive, media, transfer)
     if url.split("v=")[-1] in _archived_ids(archive):
         print(f"Skip {url}: archived in {archive}")
         return
     if dry_run:
         print(f"Dry run: download {url} to {destination} ({media.description(quality)}); "
-              f"availability not checked; archive: {archive}")
+              f"availability not checked; archive: {archive}; transfer: {transfer.description()}")
         return
 
     _require_audio_tools(media)
@@ -176,6 +211,7 @@ class PlaylistPlan:
     archive: Path
     entries: tuple[PlaylistEntry, ...]
     media: MediaOptions = MediaOptions()
+    transfer: TransferOptions = TransferOptions()
 
 
 def playlist_url(value):
@@ -192,7 +228,7 @@ def playlist_url(value):
     return f"https://www.youtube.com/playlist?list={playlist_id}"
 
 
-def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media=None):
+def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media=None, transfer=None):
     """Read playlist metadata and return a fixed selection without writing files.
 
     Positions are 1-based, inclusive. Unlike a single-video dry run, enumerating
@@ -242,7 +278,8 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
                 ))
     except (yt_dlp.utils.DownloadError, OSError) as error:
         raise DownloadError(str(error)) from None
-    return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected), media)
+    return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected), media,
+                        transfer or TransferOptions())
 
 
 def download_playlist(plan, *, quality=None):
@@ -251,7 +288,7 @@ def download_playlist(plan, *, quality=None):
     yt-dlp records completed IDs after postprocessing succeeds. A failure stops
     this run; rerunning safely skips completed entries via the shared archive.
     """
-    options = _options(plan.output, quality, plan.archive, plan.media)
+    options = _options(plan.output, quality, plan.archive, plan.media, plan.transfer)
     options["outtmpl"] = "%(playlist_index)05d - %(title).150B [%(id)s].%(ext)s"
     archived = _archived_ids(plan.archive)
     pending = [entry for entry in plan.entries if entry.skip_reason is None and entry.video_id not in archived]

@@ -99,6 +99,28 @@ retried by this command: rerun the original playlist selection to finish them.
 The archive remains the completion record if a run is interrupted between a
 download and its report checkpoint.
 
+Limit media transfer bandwidth and automatic retry attempts when needed:
+
+```bash
+youtube3 download video VIDEO_ID --limit-rate 1.5M --retries 3 --fragment-retries 2
+youtube3 download playlist PLAYLIST_ID --apply --limit-rate 500K --retries 0 --report limited-run.json
+```
+
+`--limit-rate` is in **bytes per second**. K, M and G use powers of 1024;
+`500K`, `2MiB` and raw byte counts are accepted. The cap applies per media
+transfer. `--retries` limits HTTP retries after the initial attempt, and
+`--fragment-retries` limits retries per media fragment. Both take nonnegative
+integers; zero disables the corresponding retries. Omitted settings retain
+yt-dlp defaults. These controls are passed to the
+[yt-dlp media downloader](https://github.com/yt-dlp/yt-dlp#download-options);
+they do not change playlist metadata requests or the batch stop/continue policy.
+Previews display the settings without transferring media.
+
+Batch reports save these controls and `download retry` reuses them. New reports
+use schema version 2; existing version-1 reports still work using default
+transfer settings. Older youtube3 checkouts reject version-2 reports rather
+than silently discarding the saved limits.
+
 Inspect formats before downloading. This lists format IDs, containers,
 resolutions, codecs and known sizes (`~` marks an estimate); it reads metadata
 online without downloading media or writing files:

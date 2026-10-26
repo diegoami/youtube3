@@ -27,7 +27,7 @@ def report(tmp_path):
 
 
 @pytest.mark.parametrize(("field", "value"), [
-    ("schema_version", 2), ("schema_version", True), ("quality", 0), ("quality", True),
+    ("schema_version", 3), ("schema_version", True), ("quality", 0), ("quality", True),
     ("output", "relative"), ("archive", None), ("playlist_url", "https://example.com/"),
     ("media", {}), ("entries", None), ("playlist_title", None),
 ])
@@ -95,3 +95,24 @@ def test_retry_cli_uses_original_selection_and_can_write_new_report(report, monk
     main.main()
     assert "1 skipped" in capsys.readouterr().out
     assert json.loads(result_path.read_text())["entries"][0]["status"] == "skipped"
+
+
+def test_version_one_reports_retry_with_backend_defaults(report, monkeypatch, capsys):
+    path, payload = report
+    monkeypatch.setitem(sys.modules, "yt_dlp", None)
+    plan, quality = batch.retry_plan(path)
+    assert plan.transfer == download.TransferOptions()
+    monkeypatch.setattr(sys, "argv", ["youtube3", "download", "retry", str(path)])
+    main.main()
+    assert "Transfer: yt-dlp defaults" in capsys.readouterr().out
+    assert json.loads(path.read_text())["schema_version"] == 1
+
+
+@pytest.mark.parametrize("settings", [None, {"limit_rate": 0}, {"retries": True},
+                                      {"fragment_retries": -1}, {"unknown": 1}])
+def test_invalid_saved_transfer_settings_are_rejected(report, settings):
+    path, payload = report
+    payload.update(schema_version=2, transfer=settings)
+    path.write_text(json.dumps(payload))
+    with pytest.raises(download.DownloadError, match="Invalid download report"):
+        batch.retry_plan(path)
