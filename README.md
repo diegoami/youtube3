@@ -174,7 +174,11 @@ run works without these tools or the optional downloader.
 
 Audio uses separate default archives: `.youtube3-download-archive-audio-native.txt`
 or `.youtube3-download-archive-audio-FORMAT.txt` in the output folder. Downloading
-a video therefore does not suppress a later audio download. An explicit
+a video therefore does not suppress a later audio download. Audio filenames
+also include `[audio-native]` or `[audio-FORMAT]`, in addition to any exact
+`[format-IDS]` marker. Each mode has its own media and postprocessing input,
+so conversion preserves previously downloaded video or native audio files.
+Playlist position prefixes remain in place. An explicit
 `--archive PATH` continues to deduplicate by video ID regardless of media mode;
 use different custom archive paths when you want both modes.
 

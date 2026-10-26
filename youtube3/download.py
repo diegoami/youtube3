@@ -149,10 +149,14 @@ def _options(output, quality, archive, media, transfer=None):
     if media.format_id is not None and quality is not None:
         raise ValueError("--quality cannot be combined with --format-id")
     height = f"[height<={quality}]" if quality else ""
+    audio_marker = f" [audio-{media.audio_format or 'native'}]" if media.audio_only else ""
+    format_marker = f" [format-{media.format_id}]" if media.format_id is not None else ""
+    # Reserve the added marker's bytes within the existing filename size budget.
+    title_bytes = 150 - len(audio_marker)
     options = {
         "format": f"bestvideo{height}+bestaudio/best{height}",
         "paths": {"home": str(output)},
-        "outtmpl": "%(title).150B [%(id)s].%(ext)s",
+        "outtmpl": f"%(title).{title_bytes}B [%(id)s]{audio_marker}{format_marker}.%(ext)s",
         "noplaylist": True,
         "overwrites": False,
         "continuedl": True,
@@ -171,7 +175,6 @@ def _options(output, quality, archive, media, transfer=None):
         else:
             selector = "bestaudio" if media.audio_only else "best*"
             options["format"] = f"{selector}[format_id='{ids[0]}']"
-        options["outtmpl"] = f"%(title).150B [%(id)s] [format-{media.format_id}].%(ext)s"
     if media.audio_format:
         options["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": media.audio_format}]
     if media.subtitles:
