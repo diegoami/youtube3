@@ -46,7 +46,7 @@ class TransferOptions:
 
 @dataclass(frozen=True)
 class MediaOptions:
-    """Opt-in audio and sidecar settings shared by video and playlist downloads."""
+    """Media selection and sidecar settings shared by video and playlist downloads."""
 
     audio_only: bool = False
     audio_format: str | None = None
@@ -54,8 +54,18 @@ class MediaOptions:
     auto_subtitles: bool = False
     write_metadata: bool = False
     write_thumbnail: bool = False
+    format_id: str | None = None
 
     def __post_init__(self):
+        if self.format_id is not None:
+            if (not isinstance(self.format_id, str) or len(self.format_id) > 64
+                    or not 1 <= len(self.format_id.split("+")) <= 2
+                    or any(not re.fullmatch(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*", part)
+                           for part in self.format_id.split("+"))):
+                raise ValueError("Format selection must be one exact ID or VIDEO_FORMAT_ID+AUDIO_FORMAT_ID "
+                                 "(at most 64 characters)")
+            if "+" in self.format_id and self.audio_only:
+                raise ValueError("A video+audio format pair cannot be combined with --audio-only")
         if self.audio_format is not None:
             if not self.audio_only:
                 raise ValueError("--audio-format requires --audio-only")
@@ -74,6 +84,10 @@ class MediaOptions:
         parts = [f"audio only ({self.audio_format or 'native'})" if self.audio_only else (
             f"video at most {quality}p" if quality else "best available video"
         )]
+        if self.format_id is not None:
+            parts[0] = f"exact format {self.format_id}" + (
+                f"; audio only ({self.audio_format or 'native'})" if self.audio_only else ""
+            )
         if self.subtitles:
             parts.append("subtitles=" + ",".join(self.subtitles) + (" (including automatic)" if self.auto_subtitles else ""))
         if self.write_metadata:
@@ -112,6 +126,8 @@ def _backend():
 
 def _archive_path(output, archive, media):
     suffix = f"-audio-{media.audio_format or 'native'}" if media.audio_only else ""
+    if media.format_id is not None:
+        suffix += f"-format-{media.format_id}"
     return Path(archive).expanduser() if archive is not None else output / f".youtube3-download-archive{suffix}.txt"
 
 
@@ -130,6 +146,8 @@ def _options(output, quality, archive, media, transfer=None):
         raise ValueError("Quality must be a positive integer height in pixels")
     if media.audio_only and quality is not None:
         raise ValueError("--quality cannot be combined with --audio-only")
+    if media.format_id is not None and quality is not None:
+        raise ValueError("--quality cannot be combined with --format-id")
     height = f"[height<={quality}]" if quality else ""
     options = {
         "format": f"bestvideo{height}+bestaudio/best{height}",
@@ -144,6 +162,16 @@ def _options(output, quality, archive, media, transfer=None):
     if media.audio_only:
         # Native audio deliberately has no combined video fallback.
         options["format"] = "bestaudio/best" if media.audio_format else "bestaudio"
+    if media.format_id is not None:
+        ids = media.format_id.split("+")
+        # Filter by literal ID; a value such as 'best' never becomes a selector.
+        # Quotes keep numeric IDs in string comparisons in yt-dlp's filter parser.
+        if len(ids) == 2:
+            options["format"] = f"bestvideo[format_id='{ids[0]}']+bestaudio[format_id='{ids[1]}']"
+        else:
+            selector = "bestaudio" if media.audio_only else "best*"
+            options["format"] = f"{selector}[format_id='{ids[0]}']"
+        options["outtmpl"] = f"%(title).150B [%(id)s] [format-{media.format_id}].%(ext)s"
     if media.audio_format:
         options["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": media.audio_format}]
     if media.subtitles:
@@ -158,6 +186,9 @@ def _options(output, quality, archive, media, transfer=None):
 
 
 def _require_audio_tools(media):
+    if media.format_id is not None and "+" in media.format_id:
+        if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+            raise DownloadError("Merging explicit formats requires the FFmpeg and ffprobe executables on PATH")
     if media.audio_format and (not shutil.which("ffmpeg") or not shutil.which("ffprobe")):
         raise DownloadError("Audio conversion requires the FFmpeg and ffprobe executables on PATH")
 
@@ -289,7 +320,7 @@ def download_playlist(plan, *, quality=None):
     this run; rerunning safely skips completed entries via the shared archive.
     """
     options = _options(plan.output, quality, plan.archive, plan.media, plan.transfer)
-    options["outtmpl"] = "%(playlist_index)05d - %(title).150B [%(id)s].%(ext)s"
+    options["outtmpl"] = "%(playlist_index)05d - " + options["outtmpl"]
     archived = _archived_ids(plan.archive)
     pending = [entry for entry in plan.entries if entry.skip_reason is None and entry.video_id not in archived]
     if not pending:

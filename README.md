@@ -117,8 +117,9 @@ they do not change playlist metadata requests or the batch stop/continue policy.
 Previews display the settings without transferring media.
 
 Batch reports save these controls and `download retry` reuses them. New reports
-use schema version 2; existing version-1 reports still work using default
-transfer settings. Older youtube3 checkouts reject version-2 reports rather
+use schema version 3; existing version-1 reports still work using default
+transfer settings, and version-2 reports retain their saved limits.
+Older youtube3 checkouts reject newer report versions rather
 than silently discarding the saved limits.
 
 Inspect formats before downloading. This lists format IDs, containers,
@@ -128,6 +129,33 @@ online without downloading media or writing files:
 ```bash
 youtube3 download formats VIDEO_ID
 ```
+
+Use a format ID from that list to select a particular stream, or combine a
+video-only ID and an audio-only ID:
+
+```bash
+youtube3 download video VIDEO_ID --format-id 18
+youtube3 download video VIDEO_ID --format-id 137+140
+youtube3 download video VIDEO_ID --audio-only --format-id 140 --audio-format mp3
+youtube3 download playlist PLAYLIST_ID --format-id 18 --apply --report formats-run.json
+```
+
+These IDs are examples; use the IDs available for your video. A single ID
+downloads exactly that stream, which may contain video, audio or both. A
+`VIDEO_ID+AUDIO_ID` pair requires video-only followed by audio-only and checks
+for FFmpeg and ffprobe before downloading. `--audio-only` accepts a single
+audio-only ID and still supports conversion. Exact selection cannot be combined
+with `--quality`, and it does not fall back to a different format if unavailable.
+The option accepts IDs, not arbitrary yt-dlp format expressions.
+
+Exact selections add `[format-IDS]` to filenames and `-format-IDS` to their
+default archive names, for example `.youtube3-download-archive-format-137+140.txt`.
+This lets different choices coexist in the same output folder. An explicit
+custom `--archive` still deduplicates only by video ID; use different custom
+archive paths to keep multiple selections. Playlist numbering is preserved,
+and reports save the exact choice for `download retry`. Previewing a playlist
+does not check whether every entry offers that format; unavailable choices
+fail on apply and can be recorded with the existing batch reporting options.
 
 For audio only, keep the native audio container or explicitly convert it:
 

@@ -27,7 +27,7 @@ def report(tmp_path):
 
 
 @pytest.mark.parametrize(("field", "value"), [
-    ("schema_version", 3), ("schema_version", True), ("quality", 0), ("quality", True),
+    ("schema_version", 4), ("schema_version", True), ("quality", 0), ("quality", True),
     ("output", "relative"), ("archive", None), ("playlist_url", "https://example.com/"),
     ("media", {}), ("entries", None), ("playlist_title", None),
 ])
@@ -106,6 +106,22 @@ def test_version_one_reports_retry_with_backend_defaults(report, monkeypatch, ca
     main.main()
     assert "Transfer: yt-dlp defaults" in capsys.readouterr().out
     assert json.loads(path.read_text())["schema_version"] == 1
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_older_reports_without_format_field_still_load(report, version):
+    path, payload = report
+    payload["schema_version"] = version
+    payload["media"].pop("format_id")
+    if version == 2:
+        payload["transfer"] = {"limit_rate": 512000, "retries": 0, "fragment_retries": None}
+    path.write_text(json.dumps(payload))
+    plan, quality = batch.retry_plan(path)
+    assert plan.media.format_id is None
+    assert quality == 720
+    if version == 2:
+        assert plan.transfer.limit_rate == 512000
+        assert plan.transfer.retries == 0
 
 
 @pytest.mark.parametrize("settings", [None, {"limit_rate": 0}, {"retries": True},

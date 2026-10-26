@@ -42,6 +42,7 @@ def positive_height(value):
 
 
 def add_media_arguments(parser):
+    parser.add_argument("--format-id", help="exact ID or VIDEO_FORMAT_ID+AUDIO_FORMAT_ID from download formats")
     parser.add_argument("--audio-only", action="store_true", help="download native audio without video")
     parser.add_argument("--audio-format", choices=["mp3", "m4a", "opus", "flac", "wav"],
                         help="convert audio (requires --audio-only, FFmpeg and ffprobe)")
@@ -57,9 +58,12 @@ def media_options(args, parser):
             audio_only=args.audio_only, audio_format=args.audio_format,
             subtitles=tuple(language.strip() for language in args.subtitles.split(",")) if args.subtitles is not None else (),
             auto_subtitles=args.auto_subtitles, write_metadata=args.write_metadata, write_thumbnail=args.write_thumbnail,
+            format_id=args.format_id,
         )
         if media.audio_only and args.quality is not None:
             raise ValueError("--quality cannot be combined with --audio-only")
+        if media.format_id is not None and args.quality is not None:
+            raise ValueError("--quality cannot be combined with --format-id")
         return media
     except ValueError as error:
         parser.error(str(error))
