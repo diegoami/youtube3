@@ -5,10 +5,13 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 
 from youtube3 import download
+from youtube3 import download_batch as batch
+from youtube3.cli import main
 
 
 PLAYLIST = "PL0123456789abcdef"
@@ -206,3 +209,176 @@ def test_real_ffmpeg_converts_generated_audio_and_records_completion(tmp_path, l
     streams = json.loads(probe.stdout)["streams"]
     assert [(stream["codec_type"], stream["codec_name"]) for stream in streams] == [("audio", "mp3")]
     assert (output / ".youtube3-download-archive-audio-mp3.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
+
+
+def test_batch_continues_then_retries_only_failure_with_saved_settings(tmp_path, local_backend, monkeypatch):
+    media = download.MediaOptions(audio_only=True, subtitles=("en",), write_metadata=True)
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media", media=media)
+    report = tmp_path / "reports" / "first.json"
+    local_backend["fail"] = VIDEO_IDS[1]
+
+    result = batch.download_batch(plan, continue_on_error=True, report=report)
+
+    assert [entry.status for entry in result.entries] == ["downloaded", "failed", "downloaded"]
+    assert result.failed == 1
+    assert local_backend["fetched"] == VIDEO_IDS
+    assert plan.archive.read_text().splitlines() == [f"youtube {VIDEO_IDS[0]}", f"youtube {VIDEO_IDS[2]}"]
+    payload = json.loads(report.read_text())
+    assert payload["entries"][1]["reason"] == "download_failed"
+    assert "example.invalid" not in report.read_text()
+    assert "Offline media failure" not in report.read_text()
+    local_backend["fail"] = None
+    local_backend["fetched"].clear()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    retry, quality = batch.retry_plan(report)
+
+    assert retry.media == media
+    assert quality is None
+    assert [(entry.position, entry.video_id) for entry in retry.entries] == [(2, VIDEO_IDS[1])]
+    second = batch.download_batch(retry, report=tmp_path / "retry.json")
+
+    assert not second.failed
+    assert local_backend["fetched"] == [VIDEO_IDS[1]]
+    assert len(list(plan.output.glob("00002 - *.m4a"))) == 1
+    assert len(list(plan.output.glob("00002 - *.en.vtt"))) == 1
+    assert len(list(plan.output.glob("00002 - *.info.json"))) == 1
+    # An older failed report must not redownload an ID completed since then.
+    local_backend["fetched"].clear()
+    assert batch.download_batch(retry).entries[0].status == "skipped"
+    assert local_backend["fetched"] == []
+
+
+def test_batch_default_stops_and_report_excludes_unattempted_from_retry(tmp_path, local_backend):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    local_backend["fail"] = VIDEO_IDS[0]
+    report = tmp_path / "first.json"
+
+    result = batch.download_batch(plan, quality=720, report=report)
+
+    assert [entry.status for entry in result.entries] == ["failed", "not_attempted", "not_attempted"]
+    assert local_backend["fetched"] == VIDEO_IDS[:1]
+    retry, quality = batch.retry_plan(report)
+    assert quality == 720
+    assert [entry.video_id for entry in retry.entries] == VIDEO_IDS[:1]
+
+
+def test_report_never_overwrites_existing_file_or_downloads_first(tmp_path, local_backend):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    report = tmp_path / "results.json"
+    report.write_text("keep me")
+
+    with pytest.raises(download.DownloadError, match="Cannot write download report"):
+        batch.download_batch(plan, report=report)
+
+    assert report.read_text() == "keep me"
+    assert local_backend["fetched"] == []
+    assert not plan.output.exists()
+
+
+def test_interrupted_batch_keeps_last_checkpoint_and_pending_entries(tmp_path, local_backend, monkeypatch):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    original = download.download_playlist
+    report = tmp_path / "results.json"
+
+    def interrupt(selection, **kwargs):
+        payload = json.loads(report.read_text())
+        if selection.entries[0].position == 2:
+            assert [entry["status"] for entry in payload["entries"]] == [
+                "downloaded", "not_attempted", "not_attempted"]
+            raise KeyboardInterrupt
+        assert all(entry["status"] == "not_attempted" for entry in payload["entries"])
+        return original(selection, **kwargs)
+
+    monkeypatch.setattr(download, "download_playlist", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        batch.download_batch(plan, report=report)
+
+    assert [entry["status"] for entry in json.loads(report.read_text())["entries"]] == [
+        "downloaded", "not_attempted", "not_attempted"]
+    assert not list(tmp_path.glob(".youtube3-report-*"))
+
+
+def test_playlist_batch_cli_exits_nonzero_after_continuing(tmp_path, local_backend, monkeypatch, capsys):
+    report = tmp_path / "results.json"
+    local_backend["fail"] = VIDEO_IDS[1]
+    monkeypatch.setattr("sys.argv", ["youtube3", "download", "playlist", PLAYLIST, "--apply",
+                                     "--output", str(tmp_path / "media"), "--continue-on-error",
+                                     "--report", str(report)])
+    with pytest.raises(SystemExit) as error:
+        main.main()
+
+    assert error.value.code == 1
+    assert local_backend["fetched"] == VIDEO_IDS
+    assert "2 downloaded; 1 failed" in capsys.readouterr().out
+    assert json.loads(report.read_text())["entries"][1]["status"] == "failed"
+
+
+def test_retry_cli_offline_preview(tmp_path, local_backend, monkeypatch, capsys):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    report = tmp_path / "results.json"
+    local_backend["fail"] = VIDEO_IDS[1]
+    batch.download_batch(plan, continue_on_error=True, report=report)
+    before = report.read_bytes()
+    local_backend["fetched"].clear()
+    monkeypatch.setitem(sys.modules, "yt_dlp", None)
+    monkeypatch.setattr("sys.argv", ["youtube3", "download", "retry", str(report)])
+
+    main.main()
+
+    assert "00002 [retry]" in capsys.readouterr().out
+    assert report.read_bytes() == before
+    assert local_backend["fetched"] == []
+    assert not list(tmp_path.glob("retry.json"))
+
+
+@pytest.mark.parametrize("still_fails", [False, True])
+def test_retry_cli_apply_downloads_failed_selection_and_reports_exit(tmp_path, local_backend, monkeypatch, still_fails):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    report = tmp_path / "results.json"
+    local_backend["fail"] = VIDEO_IDS[1]
+    batch.download_batch(plan, continue_on_error=True, report=report)
+    local_backend["fetched"].clear()
+    if not still_fails:
+        local_backend["fail"] = None
+    retry_report = tmp_path / "retry.json"
+    monkeypatch.setattr("sys.argv", ["youtube3", "download", "retry", str(report), "--apply",
+                                     "--report", str(retry_report)])
+    if still_fails:
+        with pytest.raises(SystemExit) as error:
+            main.main()
+        assert error.value.code == 1
+    else:
+        main.main()
+    assert local_backend["fetched"] == [VIDEO_IDS[1]]
+    entry = json.loads(retry_report.read_text())["entries"][0]
+    assert entry["position"] == 2
+    assert entry["status"] == ("failed" if still_fails else "downloaded")
+
+
+def test_report_checkpoint_failure_stops_before_next_download(tmp_path, local_backend, monkeypatch):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    report = tmp_path / "results.json"
+
+    def fail(*args):
+        raise OSError("Offline write failure")
+
+    monkeypatch.setattr(batch.os, "replace", fail)
+    with pytest.raises(download.DownloadError, match="Offline write failure"):
+        batch.download_batch(plan, continue_on_error=True, report=report)
+
+    assert local_backend["fetched"] == VIDEO_IDS[:1]
+    assert not list(tmp_path.glob(".youtube3-report-*"))
+    assert json.loads(report.read_text())["entries"][0]["status"] == "not_attempted"
+    # The archive remains authoritative if the checkpoint could not advance.
+    assert plan.archive.read_text().strip() == f"youtube {VIDEO_IDS[0]}"
+
+
+@pytest.mark.parametrize("target", ["output", "archive"])
+def test_report_cannot_collide_with_archive_or_output(tmp_path, local_backend, target):
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    with pytest.raises(download.DownloadError, match="Report must differ"):
+        batch.download_batch(plan, report=getattr(plan, target))
+    assert local_backend["fetched"] == []
+    assert not plan.output.exists()

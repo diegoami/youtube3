@@ -70,6 +70,35 @@ archive across output folders. Its parent folder is created only when downloadin
 The archive is the record of completion: if you delete a media file and want
 to fetch it again, remove its `youtube VIDEO_ID` line from the archive first.
 
+For longer playlists, optionally continue after individual failures and save
+per-video results:
+
+```bash
+youtube3 download playlist PLAYLIST_ID --output ./videos --apply --continue-on-error --report run-1.json
+youtube3 download retry run-1.json
+youtube3 download retry run-1.json --apply --continue-on-error --report run-2.json
+```
+
+`--continue-on-error` and `--report` are independently optional. The default
+still stops at the first failure. A run with any failed downloads exits with
+status 1 even when it continues through the remaining entries. Reports require
+`--apply` and a **new** file path; existing files are preserved. A report is
+created before the first download and checkpointed after each result. It records
+`downloaded`, `failed`, `skipped` and `not_attempted` entries, plus the selected
+IDs, original positions, quality, media options and absolute output/archive paths.
+It excludes raw backend errors and media URLs; download errors appear in the
+terminal. Keep reports locally if playlist titles or local paths are personal.
+
+`download retry` previews **only failed entries** offline, without the download
+extra. `--apply` uses the saved settings and original positions without rereading
+the playlist, and rechecks the archive so already completed IDs are skipped.
+Reports refer to paths on the machine that created them. A retry report can
+itself be used for another retry; use a fresh `--report` path each time.
+Entries marked `not_attempted` after an interruption or an early stop are not
+retried by this command: rerun the original playlist selection to finish them.
+The archive remains the completion record if a run is interrupted between a
+download and its report checkpoint.
+
 Inspect formats before downloading. This lists format IDs, containers,
 resolutions, codecs and known sizes (`~` marks an estimate); it reads metadata
 online without downloading media or writing files:
