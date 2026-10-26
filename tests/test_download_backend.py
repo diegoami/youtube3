@@ -24,7 +24,7 @@ def local_backend(monkeypatch):
     from yt_dlp.extractor.common import InfoExtractor
 
     state = {"fetched": [], "fail": None, "title": "Original title", "media_formats": [],
-             "asset_reads": [], "audio_bytes": None}
+             "asset_reads": [], "audio_bytes": None, "native_dl": yt_dlp.YoutubeDL.dl}
 
     class YoutubeIE(InfoExtractor):
         _VALID_URL = r"https://www\.youtube\.com/watch\?v=(?P<id>[A-Za-z0-9_-]{11})"
@@ -382,3 +382,76 @@ def test_report_cannot_collide_with_archive_or_output(tmp_path, local_backend, t
         batch.download_batch(plan, report=getattr(plan, target))
     assert local_backend["fetched"] == []
     assert not plan.output.exists()
+
+
+@pytest.mark.parametrize("retries", [0, 1])
+def test_real_http_downloader_obeys_retry_count_and_rate_options(tmp_path, local_backend, monkeypatch, retries):
+    import yt_dlp
+    from yt_dlp.downloader.common import FileDownloader
+    from yt_dlp.networking import Response
+    from yt_dlp.networking.exceptions import HTTPError
+
+    attempts = []
+    limits = []
+    content = b"synthetic media bytes"
+    original_slow_down = FileDownloader.slow_down
+
+    def transport(self, request):
+        assert request.url.startswith("https://example.invalid/")
+        attempts.append(request.url)
+        if len(attempts) == 1:
+            raise HTTPError(Response(io.BytesIO(), request.url, {}, status=503))
+        return Response(io.BytesIO(content), request.url, {"Content-Length": str(len(content))})
+
+    def slow_down(self, *args):
+        limits.append(tuple(self.params.get(key) for key in ("ratelimit", "retries", "fragment_retries")))
+        return original_slow_down(self, *args)
+
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "dl", local_backend["native_dl"])
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "urlopen", transport)
+    monkeypatch.setattr(FileDownloader, "slow_down", slow_down)
+    transfer = download.TransferOptions(limit_rate=1048576, retries=retries, fragment_retries=2)
+    if retries == 0:
+        with pytest.raises(download.DownloadError, match="503"):
+            download.download_video(VIDEO_IDS[0], tmp_path, transfer=transfer)
+        assert len(attempts) == 1
+        assert not (tmp_path / ".youtube3-download-archive.txt").exists()
+    else:
+        download.download_video(VIDEO_IDS[0], tmp_path, transfer=transfer)
+        assert len(attempts) == 2
+        assert next(tmp_path.glob("*.mp4")).read_bytes() == content
+        assert limits and all(values == (1048576, 1, 2) for values in limits)
+        assert (tmp_path / ".youtube3-download-archive.txt").read_text().strip() == f"youtube {VIDEO_IDS[0]}"
+
+
+def test_playlist_limits_are_saved_and_reused_by_retry(tmp_path, local_backend, monkeypatch, capsys):
+    import yt_dlp
+
+    report = tmp_path / "first.json"
+    monkeypatch.setattr(sys, "argv", ["youtube3", "download", "playlist", PLAYLIST, "--apply",
+                                     "--output", str(tmp_path / "media"), "--continue-on-error",
+                                     "--report", str(report), "--limit-rate", "500K",
+                                     "--retries", "0", "--fragment-retries", "3"])
+    local_backend["fail"] = VIDEO_IDS[1]
+    with pytest.raises(SystemExit) as error:
+        main.main()
+    assert error.value.code == 1
+    assert "rate limit 512000 bytes/s" in capsys.readouterr().out
+    payload = json.loads(report.read_text())
+    assert payload["schema_version"] == 2
+    assert payload["transfer"] == {"limit_rate": 512000, "retries": 0, "fragment_retries": 3}
+    plan, quality = batch.retry_plan(report)
+    local_backend["fail"] = None
+    local_backend["fetched"].clear()
+    options = []
+    original = yt_dlp.YoutubeDL.dl
+
+    def local_media(self, *args, **kwargs):
+        options.append(tuple(self.params.get(key) for key in ("ratelimit", "retries", "fragment_retries")))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "dl", local_media)
+    result = batch.download_batch(plan, quality=quality)
+    assert not result.failed
+    assert local_backend["fetched"] == [VIDEO_IDS[1]]
+    assert options == [(512000, 0, 3)]

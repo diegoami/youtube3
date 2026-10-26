@@ -23,6 +23,7 @@ def main():
         plan, quality = retry_plan(args.source)
         print(f"Playlist: {plan.title}\nOutput: {plan.output}\nArchive: {plan.archive}")
         print(f"Media: {plan.media.description(quality)}")
+        print(f"Transfer: {plan.transfer.description()}")
         for entry in plan.entries:
             print(f"{entry.position:05d} [retry] {entry.video_id} {entry.title}")
         print(f"{len(plan.entries)} failed entries selected; completed IDs will be skipped using the archive")

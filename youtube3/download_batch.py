@@ -33,13 +33,14 @@ class BatchResult:
 
 def _payload(plan, quality, entries):
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "playlist_url": plan.url,
         "playlist_title": plan.title,
         "output": str(plan.output.resolve()),
         "archive": str(plan.archive.resolve()),
         "quality": quality,
         "media": asdict(plan.media),
+        "transfer": asdict(plan.transfer),
         "entries": [asdict(entry) for entry in entries],
     }
 
@@ -73,7 +74,7 @@ def download_batch(plan, *, quality=None, continue_on_error=False, report=None):
     from failures, including when a process is interrupted. Raw backend errors
     are printed locally and are deliberately excluded from report files.
     """
-    download._options(plan.output, quality, plan.archive, plan.media)
+    download._options(plan.output, quality, plan.archive, plan.media, plan.transfer)
     archived = download._archived_ids(plan.archive)
     entries = [BatchEntry(entry.position, entry.video_id, entry.title,
                           "skipped" if entry.skip_reason or entry.video_id in archived else "not_attempted",
@@ -116,8 +117,12 @@ def retry_plan(report):
     except (OSError, UnicodeError, ValueError) as error:
         raise download.DownloadError(f"Cannot read download report: {error}") from None
     try:
-        if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        version = payload["schema_version"]
+        if type(version) is not int or version not in {1, 2}:
             raise ValueError("Unsupported report version")
+        if version == 1 and "transfer" in payload:
+            raise ValueError("Transfer settings require report version 2")
+        transfer = download.TransferOptions(**payload["transfer"]) if version == 2 else download.TransferOptions()
         url = payload["playlist_url"]
         if not isinstance(url, str) or download.playlist_url(url) != url:
             raise ValueError("Invalid playlist URL")
@@ -136,7 +141,7 @@ def retry_plan(report):
         media = download.MediaOptions(**media_data)
         output, archive = map(Path, paths)
         quality = payload["quality"]
-        download._options(output, quality, archive, media)
+        download._options(output, quality, archive, media, transfer)
         if not isinstance(payload["entries"], list):
             raise ValueError("Invalid report entries")
         entries = []
@@ -152,6 +157,6 @@ def retry_plan(report):
                 if not isinstance(video_id, str) or download.video_url(video_id).split("v=")[-1] != video_id:
                     raise ValueError("Invalid failed video ID")
                 entries.append(download.PlaylistEntry(item["position"], video_id, item["title"]))
-        return download.PlaylistPlan(url, title, output, archive, tuple(entries), media), quality
+        return download.PlaylistPlan(url, title, output, archive, tuple(entries), media, transfer), quality
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         raise download.DownloadError(f"Invalid download report: {error}") from None

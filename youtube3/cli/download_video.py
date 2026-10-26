@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path
 
 from youtube3.download import DownloadError, download_video
-from youtube3.cli.download_options import add_media_arguments, media_options, positive_height
+from youtube3.cli.download_options import (
+    add_media_arguments, add_transfer_arguments, media_options, positive_height, transfer_options,
+)
 
 
 def main():
@@ -18,11 +20,12 @@ def main():
     parser.add_argument("--archive", type=Path, help="completed-ID archive (default: in the output folder)")
     parser.add_argument("--dry-run", action="store_true", help="print the plan without network access or file writes")
     add_media_arguments(parser)
+    add_transfer_arguments(parser)
     args = parser.parse_args()
     media = media_options(args, parser)
     try:
         download_video(args.video, args.output, quality=args.quality, dry_run=args.dry_run,
-                       archive=args.archive, media=media)
+                       archive=args.archive, media=media, transfer=transfer_options(args))
     except (ValueError, DownloadError) as error:
         parser.exit(1, f"Error: {error}\n")
 

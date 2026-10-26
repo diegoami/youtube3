@@ -1,8 +1,37 @@
 """Arguments shared by download commands, without OAuth setup."""
 
 import argparse
+from fractions import Fraction
+import re
 
-from youtube3.download import MediaOptions
+from youtube3.download import MediaOptions, TransferOptions
+
+
+def rate_limit(value):
+    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([KMG](?:i?B)?|B)?", value.strip(), re.IGNORECASE)
+    if match is not None:
+        unit = (match[2] or "B")[0].upper()
+        rate = int(Fraction(match[1]) * 1024 ** {"B": 0, "K": 1, "M": 2, "G": 3}[unit])
+        if rate > 0:
+            return rate
+    raise argparse.ArgumentTypeError("rate must be positive bytes/s, e.g. 500K, 1.5M or 2097152")
+
+
+def retry_count(value):
+    count = int(value)
+    if count < 0:
+        raise argparse.ArgumentTypeError("retry count must be a nonnegative integer (0 disables retries)")
+    return count
+
+
+def add_transfer_arguments(parser):
+    parser.add_argument("--limit-rate", type=rate_limit, help="media bandwidth cap in bytes/s, e.g. 500K or 2M")
+    parser.add_argument("--retries", type=retry_count, help="HTTP retries per media transfer (0 disables retries)")
+    parser.add_argument("--fragment-retries", type=retry_count, help="retries per media fragment (0 disables retries)")
+
+
+def transfer_options(args):
+    return TransferOptions(limit_rate=args.limit_rate, retries=args.retries, fragment_retries=args.fragment_retries)
 
 
 def positive_height(value):

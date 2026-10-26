@@ -5,7 +5,9 @@ from pathlib import Path
 
 from youtube3.download import DownloadError, download_playlist, preview_playlist
 from youtube3.download_batch import download_batch
-from youtube3.cli.download_options import add_media_arguments, media_options, positive_height
+from youtube3.cli.download_options import (
+    add_media_arguments, add_transfer_arguments, media_options, positive_height, transfer_options,
+)
 
 
 def main():
@@ -25,14 +27,17 @@ def main():
     mode.add_argument("--apply", action="store_true", help="download after printing the selection")
     mode.add_argument("--dry-run", action="store_true", help="preview only (default); reads playlist metadata online")
     add_media_arguments(parser)
+    add_transfer_arguments(parser)
     args = parser.parse_args()
     media = media_options(args, parser)
     if args.report is not None and not args.apply:
         parser.error("--report requires --apply")
     try:
-        plan = preview_playlist(args.playlist, args.output, start=args.start, end=args.end, archive=args.archive, media=media)
+        plan = preview_playlist(args.playlist, args.output, start=args.start, end=args.end, archive=args.archive,
+                                media=media, transfer=transfer_options(args))
         print(f"Playlist: {plan.title}\nOutput: {plan.output}\nArchive: {plan.archive}")
         print(f"Media: {media.description(args.quality)}")
+        print(f"Transfer: {plan.transfer.description()}")
         for entry in plan.entries:
             action = f"skip: {entry.skip_reason}" if entry.skip_reason else "download"
             print(f"{entry.position:05d} [{action}] {entry.video_id or '-'} {entry.title}")
