@@ -1,10 +1,12 @@
 """Retry only the failed IDs saved in a playlist download report."""
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
 from youtube3.download import DownloadError
 from youtube3.download_batch import download_batch, retry_plan
+from youtube3.cli.download_options import add_access_arguments, access_options, retry_count
 
 
 def main():
@@ -12,18 +14,25 @@ def main():
                                      description="Preview failed report entries offline; --apply retries them.")
     parser.add_argument("source", type=Path, help="previous download report JSON")
     parser.add_argument("--report", type=Path, help="save retry results to a NEW JSON file (requires --apply)")
-    parser.add_argument("--continue-on-error", action="store_true", help="attempt every failed entry")
+    parser.add_argument("--continue-on-error", action="store_true", help="continue after ordinary failures; blocks stop")
+    add_access_arguments(parser)
+    parser.add_argument("--sleep-interval", type=retry_count, help="override saved seconds between extraction attempts")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="retry the displayed failed selection")
     mode.add_argument("--dry-run", action="store_true", help="offline preview only (default)")
     args = parser.parse_args()
     if args.report is not None and not args.apply:
         parser.error("--report requires --apply")
+    access = access_options(args, parser)
     try:
         plan, quality = retry_plan(args.source)
+        plan = replace(plan, access=access)
+        if args.sleep_interval is not None:
+            plan = replace(plan, transfer=replace(plan.transfer, sleep_interval=args.sleep_interval))
         print(f"Playlist: {plan.title}\nOutput: {plan.output}\nArchive: {plan.archive}")
         print(f"Media: {plan.media.description(quality)}")
         print(f"Transfer: {plan.transfer.description()}")
+        print(f"Cookies: {'requested' if access.enabled else 'required again' if plan.requires_cookies else 'none'}")
         for entry in plan.entries:
             print(f"{entry.position:05d} [retry] {entry.video_id} {entry.title}")
         print(f"{len(plan.entries)} failed entries selected; completed IDs will be skipped using the archive")

@@ -6,7 +6,8 @@ from pathlib import Path
 from youtube3.download import DownloadError, download_playlist, preview_playlist
 from youtube3.download_batch import download_batch
 from youtube3.cli.download_options import (
-    add_media_arguments, add_transfer_arguments, media_options, positive_height, transfer_options,
+    add_access_arguments, access_options, add_media_arguments, add_transfer_arguments,
+    media_options, positive_height, transfer_options,
 )
 
 
@@ -22,22 +23,24 @@ def main():
     parser.add_argument("--end", type=int, help="last playlist position (inclusive; default: to the end)")
     parser.add_argument("--archive", type=Path, help="completed-ID archive (default: in the output folder)")
     parser.add_argument("--report", type=Path, help="save results to a NEW JSON file (requires --apply)")
-    parser.add_argument("--continue-on-error", action="store_true", help="attempt remaining entries after a failure")
+    parser.add_argument("--continue-on-error", action="store_true", help="continue after ordinary failures; blocks stop")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="download after printing the selection")
     mode.add_argument("--dry-run", action="store_true", help="preview only (default); reads playlist metadata online")
     add_media_arguments(parser)
     add_transfer_arguments(parser)
+    add_access_arguments(parser)
     args = parser.parse_args()
     media = media_options(args, parser)
     if args.report is not None and not args.apply:
         parser.error("--report requires --apply")
     try:
         plan = preview_playlist(args.playlist, args.output, start=args.start, end=args.end, archive=args.archive,
-                                media=media, transfer=transfer_options(args))
+                                media=media, transfer=transfer_options(args), access=access_options(args, parser))
         print(f"Playlist: {plan.title}\nOutput: {plan.output}\nArchive: {plan.archive}")
         print(f"Media: {media.description(args.quality)}")
         print(f"Transfer: {plan.transfer.description()}")
+        print(f"Cookies: {'requested' if plan.access.enabled else 'none'}")
         for entry in plan.entries:
             action = f"skip: {entry.skip_reason}" if entry.skip_reason else "download"
             print(f"{entry.position:05d} [{action}] {entry.video_id or '-'} {entry.title}")

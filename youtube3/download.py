@@ -1,15 +1,84 @@
 """Optional public-video downloads, independent of the YouTube Data API."""
 
+import io
 import re
 import shutil
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 
 class DownloadError(Exception):
     """A missing download dependency or a failed media download."""
+
+
+class DownloadBlockedError(DownloadError):
+    """A rate limit or bot challenge that must stop a batch."""
+
+
+@dataclass(frozen=True)
+class AccessOptions:
+    """Explicit, transient cookie access; never serialized in a batch report."""
+
+    cookies: str | Path | None = field(default=None, repr=False)
+    browser: str | None = None
+    browser_profile: str | None = field(default=None, repr=False)
+
+    def __post_init__(self):
+        if self.cookies is not None and self.browser is not None:
+            raise ValueError("Choose a cookie file or a browser, not both")
+        if self.cookies is not None and (not isinstance(self.cookies, (str, Path)) or not str(self.cookies)):
+            raise ValueError("Cookie file must be a nonempty path")
+        if self.browser is not None and self.browser not in {
+            "brave", "chrome", "chromium", "edge", "firefox", "opera", "safari", "vivaldi", "whale",
+        }:
+            raise ValueError("Unsupported cookie browser")
+        if self.browser_profile is not None and (
+            self.browser is None or not isinstance(self.browser_profile, str) or not self.browser_profile
+        ):
+            raise ValueError("A nonempty browser profile requires --cookies-from-browser")
+
+    @property
+    def enabled(self):
+        return self.cookies is not None or self.browser is not None
+
+    def backend_options(self):
+        if self.cookies is not None:
+            try:
+                # yt-dlp saves its cookie jar on close. Use an in-memory stream
+                # so loading cookies never rewrites the owner's source file.
+                content = Path(self.cookies).expanduser().read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                raise DownloadError("Cannot read cookie file; check its path and permissions") from None
+            # yt-dlp's cookie parser prints malformed lines directly to stderr,
+            # bypassing its logger. Reject those lines without echoing contents.
+            lines = content.splitlines()
+            if not lines or lines[0] not in {"# Netscape HTTP Cookie File", "# HTTP Cookie File"}:
+                raise DownloadError("Cookie file must use Netscape HTTP Cookie File format")
+            for line in lines[1:]:
+                if line.startswith("#HttpOnly_"):
+                    line = line.removeprefix("#HttpOnly_")
+                elif line.startswith("#") or not line.strip():
+                    continue
+                parts = line.split("\t")
+                if (len(parts) != 7 or parts[1] not in {"TRUE", "FALSE"}
+                        or parts[3] not in {"TRUE", "FALSE"}
+                        or (parts[4] and not re.fullmatch(r"[0-9]{1,20}", parts[4]))
+                        or (parts[1] == "TRUE") != parts[0].startswith(".")):
+                    raise DownloadError("Cookie file contains an invalid Netscape entry; contents are not displayed")
+            return {"cookiefile": io.StringIO(content)}
+        if self.browser is not None:
+            return {"cookiesfrombrowser": (self.browser, self.browser_profile, None, None)}
+        return {}
+
+
+def _check_cookie_paths(access, *paths):
+    if access.cookies is not None:
+        source = Path(access.cookies).expanduser().resolve()
+        if any(path is not None and Path(path).expanduser().resolve() == source for path in paths):
+            raise ValueError("Cookie source must differ from output, archive and report paths")
 
 
 @dataclass(frozen=True)
@@ -19,11 +88,12 @@ class TransferOptions:
     limit_rate: int | None = None
     retries: int | None = None
     fragment_retries: int | None = None
+    sleep_interval: int | None = None
 
     def __post_init__(self):
         if self.limit_rate is not None and (type(self.limit_rate) is not int or self.limit_rate <= 0):
             raise ValueError("Rate limit must be a positive integer number of bytes per second")
-        for name in ("retries", "fragment_retries"):
+        for name in ("retries", "fragment_retries", "sleep_interval"):
             value = getattr(self, name)
             if value is not None and (type(value) is not int or value < 0):
                 raise ValueError(f"{name.replace('_', ' ').capitalize()} must be a nonnegative integer")
@@ -42,6 +112,8 @@ class TransferOptions:
             parts.append(f"HTTP retries {self.retries}")
         if self.fragment_retries is not None:
             parts.append(f"fragment retries {self.fragment_retries}")
+        if self.sleep_interval is not None:
+            parts.append(f"extraction interval {self.sleep_interval}s")
         return "; ".join(parts) or "yt-dlp defaults"
 
 
@@ -130,34 +202,51 @@ def _failure_message(error):
     message = str(error)
     normalized = message.lower().replace("’", "'")
     reasons = []
-    if re.search(r"\b429\b", normalized) or "too many requests" in normalized:
+    if re.search(r"\bhttp(?:\s*error|\s+status)?\s*:?\s*429\b", normalized) or "too many requests" in normalized:
         reasons.append("YouTube rate limit (HTTP 429). Stop requests and try again later.")
     if "confirm you're not a bot" in normalized or "confirm you are not a bot" in normalized:
-        reasons.append("YouTube bot challenge. Public extraction is blocked; "
-                       "youtube3 does not support browser cookies or authenticated downloads.")
+        reasons.append("YouTube bot challenge. Extraction is blocked; "
+                       "explicit cookies may help but do not guarantee access.")
     if reasons:
         return " ".join(reasons) + " Installing a JavaScript runtime does not guarantee this block will clear."
     return message
 
 
+def _extraction_error(error, access):
+    message = _failure_message(error)
+    if message != str(error):
+        return DownloadBlockedError(message)
+    if access.enabled:
+        return DownloadError("Download failed while using cookies; check the cookie source, "
+                             "browser access and dependency setup. Backend details are suppressed to protect credentials.")
+    return DownloadError(message)
+
+
 class _DownloadLogger:
     """Keep upstream progress while giving wrapper-appropriate diagnostics."""
 
-    def __init__(self, *, quiet=False):
+    def __init__(self, *, quiet=False, sensitive=False):
         self.quiet = quiet
+        self.sensitive = sensitive
+
+    def _message(self, message):
+        translated = _failure_message(message)
+        if self.sensitive and translated == message:
+            return "Cookie-enabled backend diagnostic suppressed to protect credentials; check cookie source and setup."
+        return translated
 
     def debug(self, message):
-        if not self.quiet and not message.startswith("[debug] "):
+        if not self.quiet and not self.sensitive and not message.startswith("[debug] "):
             print(_failure_message(message))
 
     def warning(self, message):
-        print(f"Warning: {_failure_message(message)}", file=sys.stderr)
+        print(f"Warning: {self._message(message)}", file=sys.stderr)
 
     def error(self, message):
-        print(f"Error: {_failure_message(message)}", file=sys.stderr)
+        print(f"Error: {self._message(message)}", file=sys.stderr)
 
 
-def _runtime_options(*, quiet=False):
+def _runtime_options(*, quiet=False, sensitive=False):
     # Enable every discovered candidate so yt-dlp can validate versions and fall
     # back to another runtime. Merely finding an executable is not validation.
     runtimes = {}
@@ -170,7 +259,12 @@ def _runtime_options(*, quiet=False):
               "Install Deno (recommended) or a supported Node/QuickJS version in the environment "
               "running youtube3; on WSL install it inside WSL. Extraction may have limited formats or fail. "
               "Setup: https://github.com/yt-dlp/yt-dlp/wiki/EJS", file=sys.stderr)
-    return {"js_runtimes": runtimes, "logger": _DownloadLogger(quiet=quiet)}
+    return {"js_runtimes": runtimes, "logger": _DownloadLogger(quiet=quiet, sensitive=sensitive)}
+
+
+def _session_options(options, access):
+    options.update(_runtime_options(quiet=options.get("quiet", False), sensitive=access.enabled))
+    options.update(access.backend_options())
 
 
 def _archive_path(output, archive, media):
@@ -245,7 +339,7 @@ def _require_audio_tools(media):
         raise DownloadError("Audio conversion requires the FFmpeg and ffprobe executables on PATH")
 
 
-def download_video(video, output, *, quality=None, dry_run=False, archive=None, media=None, transfer=None):
+def download_video(video, output, *, quality=None, dry_run=False, archive=None, media=None, transfer=None, access=None):
     """Download one public video; quality is an optional maximum height in pixels.
 
     A dry run only prints the local plan: no network, backend import or file writes.
@@ -255,26 +349,29 @@ def download_video(video, output, *, quality=None, dry_run=False, archive=None, 
     url = video_url(video)
     media = media or MediaOptions()
     transfer = transfer or TransferOptions()
+    access = access or AccessOptions()
     destination = Path(output).expanduser()
     archive = _archive_path(destination, archive, media)
+    _check_cookie_paths(access, destination, archive)
     options = _options(destination, quality, archive, media, transfer)
     if url.split("v=")[-1] in _archived_ids(archive):
         print(f"Skip {url}: archived in {archive}")
         return
     if dry_run:
         print(f"Dry run: download {url} to {destination} ({media.description(quality)}); "
-              f"availability not checked; archive: {archive}; transfer: {transfer.description()}")
+              f"availability not checked; archive: {archive}; transfer: {transfer.description()}; "
+              f"cookies: {'requested (not accessed)' if access.enabled else 'none'}")
         return
 
     _require_audio_tools(media)
     yt_dlp = _backend()
-    options.update(_runtime_options(quiet=options.get("quiet", False)))
+    _session_options(options, access)
     try:
         archive.parent.mkdir(parents=True, exist_ok=True)
         with yt_dlp.YoutubeDL(options) as downloader:
             result = downloader.download([url])
-    except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(_failure_message(error)) from None
+    except (getattr(yt_dlp.utils, "YoutubeDLError", yt_dlp.utils.DownloadError), OSError) as error:
+        raise _extraction_error(error, access) from None
     if result:
         raise DownloadError("yt-dlp could not complete the download")
 
@@ -296,6 +393,8 @@ class PlaylistPlan:
     entries: tuple[PlaylistEntry, ...]
     media: MediaOptions = MediaOptions()
     transfer: TransferOptions = TransferOptions()
+    access: AccessOptions = AccessOptions()
+    requires_cookies: bool = False
 
 
 def playlist_url(value):
@@ -312,7 +411,7 @@ def playlist_url(value):
     return f"https://www.youtube.com/playlist?list={playlist_id}"
 
 
-def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media=None, transfer=None):
+def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media=None, transfer=None, access=None):
     """Read playlist metadata and return a fixed selection without writing files.
 
     Positions are 1-based, inclusive. Unlike a single-video dry run, enumerating
@@ -320,11 +419,13 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
     """
     url = playlist_url(playlist)
     media = media or MediaOptions()
+    access = access or AccessOptions()
     if (type(start) is not int or start < 1
             or (end is not None and (type(end) is not int or end < start))):
         raise ValueError("Playlist range must use positive positions with end >= start")
     destination = Path(output).expanduser()
     archive = _archive_path(destination, archive, media)
+    _check_cookie_paths(access, destination, archive)
     archived = _archived_ids(archive)
     yt_dlp = _backend()
     options = {
@@ -334,7 +435,7 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
         "cachedir": False,
         "quiet": True,
     }
-    options.update(_runtime_options(quiet=options.get("quiet", False)))
+    _session_options(options, access)
     try:
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=False)
@@ -361,10 +462,10 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
                     item.get("title") or "Unavailable video",
                     reason,
                 ))
-    except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(_failure_message(error)) from None
+    except (getattr(yt_dlp.utils, "YoutubeDLError", yt_dlp.utils.DownloadError), OSError) as error:
+        raise _extraction_error(error, access) from None
     return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected), media,
-                        transfer or TransferOptions())
+                        transfer or TransferOptions(), access, access.enabled)
 
 
 def download_playlist(plan, *, quality=None):
@@ -375,17 +476,22 @@ def download_playlist(plan, *, quality=None):
     """
     options = _options(plan.output, quality, plan.archive, plan.media, plan.transfer)
     options["outtmpl"] = "%(playlist_index)05d - " + options["outtmpl"]
+    _check_cookie_paths(plan.access, plan.output, plan.archive)
     archived = _archived_ids(plan.archive)
     pending = [entry for entry in plan.entries if entry.skip_reason is None and entry.video_id not in archived]
     if not pending:
         return
+    if plan.requires_cookies and not plan.access.enabled:
+        raise DownloadError("Re-supply a cookie option to apply this report; cookie access is not saved")
     _require_audio_tools(plan.media)
     yt_dlp = _backend()
-    options.update(_runtime_options(quiet=options.get("quiet", False)))
+    _session_options(options, plan.access)
     try:
         plan.archive.parent.mkdir(parents=True, exist_ok=True)
         with yt_dlp.YoutubeDL(options) as downloader:
-            for entry in pending:
+            for index, entry in enumerate(pending):
+                if index and plan.transfer.sleep_interval:
+                    time.sleep(plan.transfer.sleep_interval)
                 info = downloader.extract_info(
                     video_url(entry.video_id), download=True,
                     extra_info={
@@ -396,17 +502,18 @@ def download_playlist(plan, *, quality=None):
                 )
                 if info is None and not downloader.in_download_archive({"id": entry.video_id, "ie_key": "Youtube"}):
                     raise DownloadError(f"Could not download video at playlist position {entry.position}")
-    except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(_failure_message(error)) from None
+    except (getattr(yt_dlp.utils, "YoutubeDLError", yt_dlp.utils.DownloadError), OSError) as error:
+        raise _extraction_error(error, plan.access) from None
 
 
-def list_formats(video):
+def list_formats(video, *, access=None):
     """Read available formats without media/file writes, returning display fields only."""
     url = video_url(video)
+    access = access or AccessOptions()
     yt_dlp = _backend()
     options = {"skip_download": True, "noplaylist": True, "quiet": True,
                "cachedir": False, "ignore_no_formats_error": True}
-    options.update(_runtime_options(quiet=options.get("quiet", False)))
+    _session_options(options, access)
     try:
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=False)
@@ -415,5 +522,5 @@ def list_formats(video):
             fields = ("format_id", "ext", "resolution", "width", "height", "vcodec", "acodec",
                       "filesize", "filesize_approx")
             return [{field: item.get(field) for field in fields} for item in info.get("formats") or []]
-    except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(_failure_message(error)) from None
+    except (getattr(yt_dlp.utils, "YoutubeDLError", yt_dlp.utils.DownloadError), OSError) as error:
+        raise _extraction_error(error, access) from None

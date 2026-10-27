@@ -87,6 +87,67 @@ def local_backend(monkeypatch):
     return state
 
 
+@pytest.mark.parametrize("source_kind", ["file", "browser"])
+def test_real_download_uses_synthetic_cookies_without_rewriting_source(tmp_path, local_backend, monkeypatch, source_kind):
+    import yt_dlp
+    import yt_dlp.cookies
+
+    source = tmp_path / "synthetic-session.txt"
+    content = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tsynthetic\tfixture-value\n"
+    source.write_text(content)
+    browsers = []
+
+    def synthetic_browser(browser, profile, logger, **kwargs):
+        browsers.append((browser, profile))
+        jar = yt_dlp.cookies.YoutubeDLCookieJar(io.StringIO(content))
+        jar.load()
+        return jar
+
+    monkeypatch.setattr(yt_dlp.cookies, "extract_cookies_from_browser", synthetic_browser)
+    original = yt_dlp.YoutubeDL.extract_info
+    loaded = []
+
+    def extract(self, *args, **kwargs):
+        loaded.append(len(list(self.cookiejar)))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "extract_info", extract)
+    access = (download.AccessOptions(cookies=source) if source_kind == "file" else
+              download.AccessOptions(browser="firefox", browser_profile="synthetic-profile"))
+    download.download_video(VIDEO_IDS[0], tmp_path / "media", access=access)
+    assert loaded and all(count == 1 for count in loaded)
+    assert list((tmp_path / "media").glob("*.mp4"))
+    assert source.read_text() == content
+    assert browsers == ([] if source_kind == "file" else [("firefox", "synthetic-profile")])
+
+
+@pytest.mark.parametrize("message", ["HTTP Error 429: Too Many Requests", "Sign in to confirm you're not a bot"])
+def test_real_backend_blocks_stop_batch_despite_continuation(tmp_path, local_backend, monkeypatch, message):
+    import yt_dlp
+
+    attempts = []
+
+    def blocked(self, *args, **kwargs):
+        attempts.append(1)
+        raise yt_dlp.utils.DownloadError(message)
+
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media")
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "dl", blocked)
+    result = batch.download_batch(plan, continue_on_error=True, report=tmp_path / "result.json")
+    assert len(attempts) == 1
+    assert [entry.status for entry in result.entries] == ["failed", "not_attempted", "not_attempted"]
+    assert result.entries[0].reason == "blocked"
+
+
+def test_real_playlist_paces_extractions_and_keeps_order(tmp_path, local_backend, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(download.time, "sleep", lambda seconds: sleeps.append((seconds, len(local_backend["fetched"]))))
+    plan = download.preview_playlist(PLAYLIST, tmp_path / "media", transfer=download.TransferOptions(sleep_interval=7))
+    download.download_playlist(plan)
+    assert sleeps == [(7, 1), (7, 2)]
+    assert local_backend["fetched"] == VIDEO_IDS
+
+
 def test_real_backend_range_preview_and_ordered_downloads(tmp_path, local_backend):
     output = tmp_path / "media"
     plan = download.preview_playlist(PLAYLIST, output, start=2, end=3)
@@ -442,8 +503,9 @@ def test_playlist_limits_are_saved_and_reused_by_retry(tmp_path, local_backend, 
     assert error.value.code == 1
     assert "rate limit 512000 bytes/s" in capsys.readouterr().out
     payload = json.loads(report.read_text())
-    assert payload["schema_version"] == 3
-    assert payload["transfer"] == {"limit_rate": 512000, "retries": 0, "fragment_retries": 3}
+    assert payload["schema_version"] == 4
+    assert payload["requires_cookies"] is False
+    assert payload["transfer"] == {"limit_rate": 512000, "retries": 0, "fragment_retries": 3, "sleep_interval": 5}
     plan, quality = batch.retry_plan(report)
     local_backend["fail"] = None
     local_backend["fetched"].clear()
@@ -515,7 +577,7 @@ def test_exact_playlist_choice_survives_failed_report_and_retry(tmp_path, local_
     assert error.value.code == 1
     assert "exact format 720" in capsys.readouterr().out
     payload = json.loads(report.read_text())
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["media"]["format_id"] == "720"
     plan, quality = batch.retry_plan(report)
     local_backend["fail"] = None

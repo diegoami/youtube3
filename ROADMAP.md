@@ -27,6 +27,7 @@
 | F-17 | "resume" (from checkpoint #106) | landed | Proposal #107: optional playlist continuation, checkpointed JSON results and offline previews/retries of failed IDs with their original settings and positions. Review remains at milestones. |
 | F-18 | "cotinue" | landed | Proposal #109: optional media bandwidth cap and HTTP/fragment retry counts, displayed in previews and preserved through batch reports/retries. Existing reports retain default settings. Review remains at milestones. |
 | F-19 | "continue" | landed | Proposal #111: exact stream IDs or a video-only/audio-only pair, separate filenames/default archives, FFmpeg merge checks and preserved choices in reports/retries. Existing reports remain readable. Review remains at milestones. |
+| F-20 | "how do we solve the issue with cookies and bot detection" — "ok do it" | landed | Proposal #119: extraction pacing, stopping batches on rate limits/bot challenges, and explicit cookie-file/browser/profile access. Cookie access is transient; reports retain pacing and require cookies again when retrying a cookie-enabled run. No live checks or PO-token integration. |
 
 ## Statuses
 

@@ -33,7 +33,8 @@ class BatchResult:
 
 def _payload(plan, quality, entries):
     return {
-        "schema_version": 3,
+        "schema_version": 4,
+        "requires_cookies": plan.requires_cookies or plan.access.enabled,
         "playlist_url": plan.url,
         "playlist_title": plan.title,
         "output": str(plan.output.resolve()),
@@ -75,12 +76,15 @@ def download_batch(plan, *, quality=None, continue_on_error=False, report=None):
     are printed locally and are deliberately excluded from report files.
     """
     download._options(plan.output, quality, plan.archive, plan.media, plan.transfer)
+    download._check_cookie_paths(plan.access, plan.output, plan.archive, report)
     archived = download._archived_ids(plan.archive)
     entries = [BatchEntry(entry.position, entry.video_id, entry.title,
                           "skipped" if entry.skip_reason or entry.video_id in archived else "not_attempted",
                           entry.skip_reason or ("archived" if entry.video_id in archived else None))
                for entry in plan.entries]
     if any(entry.status == "not_attempted" for entry in entries):
+        if plan.requires_cookies and not plan.access.enabled:
+            raise download.DownloadError("Re-supply a cookie option to apply this report; cookie access is not saved")
         download._require_audio_tools(plan.media)
         download._backend()
     report_path = Path(report).expanduser() if report is not None else None
@@ -88,24 +92,30 @@ def download_batch(plan, *, quality=None, continue_on_error=False, report=None):
         if report_path.resolve() in {plan.output.resolve(), plan.archive.resolve()}:
             raise download.DownloadError("Report must differ from the output directory and download archive")
         _checkpoint(report_path, _payload(plan, quality, entries), create=True)
+    attempted = False
     for index, entry in enumerate(entries):
+        blocked = False
         if entry.status != "not_attempted":
             continue
         # Refresh for a reused plan or another entry that completed this same ID.
         if entry.video_id in download._archived_ids(plan.archive):
             entries[index] = replace(entry, status="skipped", reason="archived")
         else:
+            if attempted and plan.transfer.sleep_interval:
+                download.time.sleep(plan.transfer.sleep_interval)
+            attempted = True
             selection = replace(plan, entries=(plan.entries[index],))
             try:
                 download.download_playlist(selection, quality=quality)
             except download.DownloadError as error:
-                entries[index] = replace(entry, status="failed", reason="download_failed")
+                blocked = isinstance(error, download.DownloadBlockedError)
+                entries[index] = replace(entry, status="failed", reason="blocked" if blocked else "download_failed")
                 print(f"Failed at playlist position {entry.position} ({entry.video_id}): {error}")
             else:
                 entries[index] = replace(entry, status="downloaded")
         if report_path is not None:
             _checkpoint(report_path, _payload(plan, quality, entries))
-        if entries[index].status == "failed" and not continue_on_error:
+        if blocked or (entries[index].status == "failed" and not continue_on_error):
             break
     return BatchResult(tuple(entries))
 
@@ -118,11 +128,18 @@ def retry_plan(report):
         raise download.DownloadError(f"Cannot read download report: {error}") from None
     try:
         version = payload["schema_version"]
-        if type(version) is not int or version not in {1, 2, 3}:
+        if type(version) is not int or version not in {1, 2, 3, 4}:
             raise ValueError("Unsupported report version")
         if version == 1 and "transfer" in payload:
             raise ValueError("Transfer settings require report version 2")
+        if version < 4 and "requires_cookies" in payload:
+            raise ValueError("Cookie requirement flag needs report version 4")
         transfer = download.TransferOptions(**payload["transfer"]) if version >= 2 else download.TransferOptions()
+        if version < 4 and transfer.sleep_interval is not None:
+            raise ValueError("Pacing settings require report version 4")
+        requires_cookies = payload["requires_cookies"] if version >= 4 else False
+        if type(requires_cookies) is not bool:
+            raise ValueError("Invalid cookie requirement flag")
         url = payload["playlist_url"]
         if not isinstance(url, str) or download.playlist_url(url) != url:
             raise ValueError("Invalid playlist URL")
@@ -159,6 +176,7 @@ def retry_plan(report):
                 if not isinstance(video_id, str) or download.video_url(video_id).split("v=")[-1] != video_id:
                     raise ValueError("Invalid failed video ID")
                 entries.append(download.PlaylistEntry(item["position"], video_id, item["title"]))
-        return download.PlaylistPlan(url, title, output, archive, tuple(entries), media, transfer), quality
+        return download.PlaylistPlan(url, title, output, archive, tuple(entries), media, transfer,
+                                     requires_cookies=requires_cookies), quality
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         raise download.DownloadError(f"Invalid download report: {error}") from None
