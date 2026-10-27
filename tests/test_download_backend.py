@@ -121,7 +121,11 @@ def test_real_download_uses_synthetic_cookies_without_rewriting_source(tmp_path,
     assert browsers == ([] if source_kind == "file" else [("firefox", "synthetic-profile")])
 
 
-@pytest.mark.parametrize("message", ["HTTP Error 429: Too Many Requests", "Sign in to confirm you're not a bot"])
+@pytest.mark.parametrize("message", [
+    "HTTP Error 429: Too Many Requests", "Sign in to confirm you're not a bot",
+    "This content isn't available, try again later. The current session has been rate-limited by YouTube for up to an hour.",
+    "Video unavailable. YouTube is requiring a captcha challenge before playback",
+])
 def test_real_backend_blocks_stop_batch_despite_continuation(tmp_path, local_backend, monkeypatch, message):
     import yt_dlp
 
