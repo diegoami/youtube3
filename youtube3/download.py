@@ -57,7 +57,7 @@ class AccessOptions:
             lines = content.splitlines()
             if not lines or lines[0] not in {"# Netscape HTTP Cookie File", "# HTTP Cookie File"}:
                 raise DownloadError("Cookie file must use Netscape HTTP Cookie File format")
-            for line in lines[1:]:
+            for line_number, line in enumerate(lines[1:], 2):
                 if line.startswith("#HttpOnly_"):
                     line = line.removeprefix("#HttpOnly_")
                 elif line.startswith("#") or not line.strip():
@@ -65,9 +65,10 @@ class AccessOptions:
                 parts = line.split("\t")
                 if (len(parts) != 7 or parts[1] not in {"TRUE", "FALSE"}
                         or parts[3] not in {"TRUE", "FALSE"}
-                        or (parts[4] and not re.fullmatch(r"[0-9]{1,20}", parts[4]))
+                        or (parts[4] and (len(parts[4]) > 20 or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", parts[4])))
                         or (parts[1] == "TRUE") != parts[0].startswith(".")):
-                    raise DownloadError("Cookie file contains an invalid Netscape entry; contents are not displayed")
+                    raise DownloadError(f"Cookie file contains an invalid Netscape entry on line {line_number}; "
+                                        "contents are not displayed")
             return {"cookiefile": io.StringIO(content)}
         if self.browser is not None:
             return {"cookiesfrombrowser": (self.browser, self.browser_profile, None, None)}
@@ -204,8 +205,11 @@ def _failure_message(error):
     reasons = []
     if re.search(r"\bhttp(?:\s*error|\s+status)?\s*:?\s*429\b", normalized) or "too many requests" in normalized:
         reasons.append("YouTube rate limit (HTTP 429). Stop requests and try again later.")
-    if "confirm you're not a bot" in normalized or "confirm you are not a bot" in normalized:
-        reasons.append("YouTube bot challenge. Extraction is blocked; "
+    elif "rate-limited by youtube" in normalized:
+        reasons.append("YouTube session rate limit. Stop requests and try again later.")
+    if ("confirm you're not a bot" in normalized or "confirm you are not a bot" in normalized
+            or "captcha challenge" in normalized):
+        reasons.append("YouTube bot challenge/CAPTCHA. Extraction is blocked; "
                        "explicit cookies may help but do not guarantee access.")
     if reasons:
         return " ".join(reasons) + " Installing a JavaScript runtime does not guarantee this block will clear."

@@ -216,6 +216,8 @@ need yt-dlp updates as the site changes; upgrade with
 Before extraction, youtube3 checks PATH for `deno`, `node` and `qjs` and enables
 the discovered runtimes in yt-dlp. yt-dlp checks their versions and chooses a
 usable runtime; finding an executable alone does not establish compatibility.
+The download extra requires yt-dlp 2025.11.12 or newer, which supports this
+runtime configuration; reinstalling the extra upgrades older versions.
 Install Deno (recommended), Node 22+ or a supported QuickJS version using
 [the upstream runtime setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 For WSL, install the runtime inside the WSL environment running youtube3.
@@ -232,7 +234,8 @@ later. A sign-in/bot challenge means public extraction is blocked. youtube3
 reports these separately from missing runtimes and does not add an automatic
 retry for either error. Installing a runtime does not guarantee either block
 will clear. Playlist enumeration can succeed even when downloading its videos
-is blocked. A 429 or bot challenge stops the playlist/batch even with
+is blocked. HTTP 429, yt-dlp's “rate-limited by YouTube” session error, and
+bot/CAPTCHA challenges stop the playlist/batch even with
 `--continue-on-error`; remaining entries stay `not_attempted`. Retry selects
 failed entries only: rerun the original selection to include unattempted entries.
 
