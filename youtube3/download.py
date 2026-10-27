@@ -2,6 +2,7 @@
 
 import re
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -124,6 +125,54 @@ def _backend():
     return yt_dlp
 
 
+def _failure_message(error):
+    """Translate blocked extraction without advertising unsupported auth flags."""
+    message = str(error)
+    normalized = message.lower().replace("’", "'")
+    reasons = []
+    if re.search(r"\b429\b", normalized) or "too many requests" in normalized:
+        reasons.append("YouTube rate limit (HTTP 429). Stop requests and try again later.")
+    if "confirm you're not a bot" in normalized or "confirm you are not a bot" in normalized:
+        reasons.append("YouTube bot challenge. Public extraction is blocked; "
+                       "youtube3 does not support browser cookies or authenticated downloads.")
+    if reasons:
+        return " ".join(reasons) + " Installing a JavaScript runtime does not guarantee this block will clear."
+    return message
+
+
+class _DownloadLogger:
+    """Keep upstream progress while giving wrapper-appropriate diagnostics."""
+
+    def __init__(self, *, quiet=False):
+        self.quiet = quiet
+
+    def debug(self, message):
+        if not self.quiet and not message.startswith("[debug] "):
+            print(_failure_message(message))
+
+    def warning(self, message):
+        print(f"Warning: {_failure_message(message)}", file=sys.stderr)
+
+    def error(self, message):
+        print(f"Error: {_failure_message(message)}", file=sys.stderr)
+
+
+def _runtime_options(*, quiet=False):
+    # Enable every discovered candidate so yt-dlp can validate versions and fall
+    # back to another runtime. Merely finding an executable is not validation.
+    runtimes = {}
+    for runtime, executable in (("deno", "deno"), ("node", "node"), ("quickjs", "qjs")):
+        path = shutil.which(executable)
+        if path:
+            runtimes[runtime] = {"path": path}
+    if not runtimes:
+        print("Warning: No JavaScript runtime found on PATH (deno, node or qjs). "
+              "Install Deno (recommended) or a supported Node/QuickJS version in the environment "
+              "running youtube3; on WSL install it inside WSL. Extraction may have limited formats or fail. "
+              "Setup: https://github.com/yt-dlp/yt-dlp/wiki/EJS", file=sys.stderr)
+    return {"js_runtimes": runtimes, "logger": _DownloadLogger(quiet=quiet)}
+
+
 def _archive_path(output, archive, media):
     suffix = f"-audio-{media.audio_format or 'native'}" if media.audio_only else ""
     if media.format_id is not None:
@@ -219,12 +268,13 @@ def download_video(video, output, *, quality=None, dry_run=False, archive=None, 
 
     _require_audio_tools(media)
     yt_dlp = _backend()
+    options.update(_runtime_options(quiet=options.get("quiet", False)))
     try:
         archive.parent.mkdir(parents=True, exist_ok=True)
         with yt_dlp.YoutubeDL(options) as downloader:
             result = downloader.download([url])
     except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(str(error)) from None
+        raise DownloadError(_failure_message(error)) from None
     if result:
         raise DownloadError("yt-dlp could not complete the download")
 
@@ -284,6 +334,7 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
         "cachedir": False,
         "quiet": True,
     }
+    options.update(_runtime_options(quiet=options.get("quiet", False)))
     try:
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=False)
@@ -311,7 +362,7 @@ def preview_playlist(playlist, output, *, start=1, end=None, archive=None, media
                     reason,
                 ))
     except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(str(error)) from None
+        raise DownloadError(_failure_message(error)) from None
     return PlaylistPlan(url, info.get("title") or "Playlist", destination, archive, tuple(selected), media,
                         transfer or TransferOptions())
 
@@ -330,6 +381,7 @@ def download_playlist(plan, *, quality=None):
         return
     _require_audio_tools(plan.media)
     yt_dlp = _backend()
+    options.update(_runtime_options(quiet=options.get("quiet", False)))
     try:
         plan.archive.parent.mkdir(parents=True, exist_ok=True)
         with yt_dlp.YoutubeDL(options) as downloader:
@@ -345,7 +397,7 @@ def download_playlist(plan, *, quality=None):
                 if info is None and not downloader.in_download_archive({"id": entry.video_id, "ie_key": "Youtube"}):
                     raise DownloadError(f"Could not download video at playlist position {entry.position}")
     except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(str(error)) from None
+        raise DownloadError(_failure_message(error)) from None
 
 
 def list_formats(video):
@@ -354,6 +406,7 @@ def list_formats(video):
     yt_dlp = _backend()
     options = {"skip_download": True, "noplaylist": True, "quiet": True,
                "cachedir": False, "ignore_no_formats_error": True}
+    options.update(_runtime_options(quiet=options.get("quiet", False)))
     try:
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=False)
@@ -363,4 +416,4 @@ def list_formats(video):
                       "filesize", "filesize_approx")
             return [{field: item.get(field) for field in fields} for item in info.get("formats") or []]
     except (yt_dlp.utils.DownloadError, OSError) as error:
-        raise DownloadError(str(error)) from None
+        raise DownloadError(_failure_message(error)) from None

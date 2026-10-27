@@ -212,6 +212,27 @@ The extra does not install these external executables. YouTube extraction may
 need yt-dlp updates as the site changes; upgrade with
 `pip install --upgrade "yt-dlp[default]"`.
 
+Before extraction, youtube3 checks PATH for `deno`, `node` and `qjs` and enables
+the discovered runtimes in yt-dlp. yt-dlp checks their versions and chooses a
+usable runtime; finding an executable alone does not establish compatibility.
+Install Deno (recommended), Node 22+ or a supported QuickJS version using
+[the upstream runtime setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+For WSL, install the runtime inside the WSL environment running youtube3.
+If none is found, youtube3 warns before extraction and continues: some metadata
+or formats may still be available. This check covers format inspection,
+playlist previews, video/playlist downloads and applied batch retries.
+Single-video dry runs and report retry previews stay offline without probing
+runtimes. Runtime selection follows the current PATH each time; no runtime path
+or setting is saved in batch reports. Custom runtime paths and browser cookies
+are not exposed as wrapper options.
+
+HTTP 429 means YouTube is rate limiting requests; stop requests and try again
+later. A sign-in/bot challenge means public extraction is blocked. youtube3
+reports these separately from missing runtimes and does not add an automatic
+retry for either error. Installing a runtime does not guarantee either block
+will clear. Playlist enumeration can succeed even when downloading its videos
+is blocked. The wrapper does not accept yt-dlp's cookie flags.
+
 Authenticated downloads are outside this feature.
 Media retrieval from YouTube has not been live-verified; automated tests use
 canned metadata and local media transport, including checks with real yt-dlp
