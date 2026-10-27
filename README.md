@@ -38,8 +38,9 @@ youtube3 download video VIDEO_ID --output ./videos --quality 720
 ```
 
 Download one public video using a video ID, an HTTPS
-YouTube watch URL or a youtu.be link. It uses no Google login, saved profiles or
-browser cookies. A watch link containing a playlist still selects only that video.
+YouTube watch URL or a youtu.be link. It uses no Google API login or saved profiles;
+browser cookies are used only when explicitly requested below.
+A watch link containing a playlist still selects only that video.
 `--quality` limits the height; the actual resolution depends on available formats.
 Existing files are preserved and interrupted downloads can resume.
 After this feature is released, install it with `pip install "youtube3[download]"`.
@@ -223,17 +224,56 @@ or formats may still be available. This check covers format inspection,
 playlist previews, video/playlist downloads and applied batch retries.
 Single-video dry runs and report retry previews stay offline without probing
 runtimes. Runtime selection follows the current PATH each time; no runtime path
-or setting is saved in batch reports. Custom runtime paths and browser cookies
-are not exposed as wrapper options.
+or setting is saved in batch reports. Custom runtime paths are not exposed as
+wrapper options.
 
 HTTP 429 means YouTube is rate limiting requests; stop requests and try again
 later. A sign-in/bot challenge means public extraction is blocked. youtube3
 reports these separately from missing runtimes and does not add an automatic
 retry for either error. Installing a runtime does not guarantee either block
 will clear. Playlist enumeration can succeed even when downloading its videos
-is blocked. The wrapper does not accept yt-dlp's cookie flags.
+is blocked. A 429 or bot challenge stops the playlist/batch even with
+`--continue-on-error`; remaining entries stay `not_attempted`. Retry selects
+failed entries only: rerun the original selection to include unattempted entries.
 
-Authenticated downloads are outside this feature.
+New video/playlist CLI runs default to five seconds between successive video
+extraction attempts. Use `--sleep-interval 10` to increase this interval, or
+`--sleep-interval 0` to disable it. This spaces extraction attempts, not media
+bandwidth or every individual HTTP request. The library leaves pacing unchanged
+unless `TransferOptions(sleep_interval=...)` is supplied. Reports preserve the
+interval; `download retry --sleep-interval N` overrides it. Older reports retain
+their original unpaced behavior unless overridden.
+
+You may explicitly supply cookies to video, formats, playlist and retry commands:
+
+```bash
+youtube3 download video VIDEO_ID --cookies /path/to/youtube-cookies.txt
+youtube3 download formats VIDEO_ID --cookies-from-browser firefox
+youtube3 download playlist PLAYLIST_ID --cookies-from-browser firefox --browser-profile default --apply --report run.json
+youtube3 download retry run.json --cookies-from-browser firefox --apply
+```
+
+Choose either a Netscape cookie file or a browser. `--browser-profile` accepts
+a profile name/path and requires `--cookies-from-browser`. Browser extraction
+uses the selected browser's local profiles; on WSL a Windows browser profile
+may not be accessible or decryptable from Linux. Use a browser in the environment
+running yt-dlp, or explicitly supply a compatible cookie file.
+Cookie files are loaded into memory and the supplied file is not rewritten.
+Malformed files are rejected without displaying their contents. With cookies
+enabled, raw backend diagnostics are suppressed to avoid exposing session data.
+Reports save only that cookies were used, not the cookie source, browser/profile
+or cookie contents; applying a retry requires explicitly supplying cookies again.
+Single-video dry runs and report previews do not read cookies or browser profiles.
+Format inspection and playlist previews read metadata online and **do access the
+requested cookie source**, even without `--apply`.
+
+Cookies are session credentials: keep exported files outside the repository and
+do not share them. Account use can result in temporary or permanent restrictions;
+use cookies only when necessary. Cookies do not guarantee access or remove rate
+limits. See [yt-dlp's YouTube cookie guidance](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
+Google API OAuth profiles remain separate. PO-token providers and automatic
+browser challenges are not included.
+
 Media retrieval from YouTube has not been live-verified; automated tests use
 canned metadata and local media transport, including checks with real yt-dlp
 and conversion of generated audio with FFmpeg when available.

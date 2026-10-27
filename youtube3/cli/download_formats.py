@@ -3,6 +3,7 @@
 import argparse
 
 from youtube3.download import DownloadError, list_formats
+from youtube3.cli.download_options import add_access_arguments, access_options
 
 
 def main():
@@ -11,9 +12,10 @@ def main():
         description="List public-video formats (reads metadata online; no media downloads or file writes).",
     )
     parser.add_argument("video", help="video ID, HTTPS YouTube watch URL or youtu.be link")
+    add_access_arguments(parser)
     args = parser.parse_args()
     try:
-        formats = list_formats(args.video)
+        formats = list_formats(args.video, access=access_options(args, parser))
     except (ValueError, DownloadError) as error:
         parser.exit(1, f"Error: {error}\n")
     print(f"{'ID':<12} {'EXT':<6} {'RESOLUTION':<14} {'VIDEO CODEC':<16} {'AUDIO CODEC':<16} SIZE")

@@ -5,7 +5,8 @@ from pathlib import Path
 
 from youtube3.download import DownloadError, download_video
 from youtube3.cli.download_options import (
-    add_media_arguments, add_transfer_arguments, media_options, positive_height, transfer_options,
+    add_access_arguments, access_options, add_media_arguments, add_transfer_arguments,
+    media_options, positive_height, transfer_options,
 )
 
 
@@ -21,11 +22,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="print the plan without network access or file writes")
     add_media_arguments(parser)
     add_transfer_arguments(parser)
+    add_access_arguments(parser)
     args = parser.parse_args()
     media = media_options(args, parser)
     try:
         download_video(args.video, args.output, quality=args.quality, dry_run=args.dry_run,
-                       archive=args.archive, media=media, transfer=transfer_options(args))
+                       archive=args.archive, media=media, transfer=transfer_options(args), access=access_options(args, parser))
     except (ValueError, DownloadError) as error:
         parser.exit(1, f"Error: {error}\n")
 

@@ -27,7 +27,7 @@ def report(tmp_path):
 
 
 @pytest.mark.parametrize(("field", "value"), [
-    ("schema_version", 4), ("schema_version", True), ("quality", 0), ("quality", True),
+    ("schema_version", 5), ("schema_version", True), ("quality", 0), ("quality", True),
     ("output", "relative"), ("archive", None), ("playlist_url", "https://example.com/"),
     ("media", {}), ("entries", None), ("playlist_title", None),
 ])

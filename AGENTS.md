@@ -206,6 +206,14 @@ The PR body records the gates, deliberate-break verification, and merge checks.
   5. **License: BSD-3-Clause**, with a `LICENSE` file, replacing the bare
      "BSD License" published up to 1.2.5 (#7). Chosen by the owner on
      2026-09-23.
+  6. **Opt-in download cookies and pacing** (owner, 2026-10-27, #119):
+     accepted explicit cookie-file/browser/profile access for downloads,
+     configurable extraction pacing, and stopping batches on rate limits or bot
+     challenges. This extends the earlier public-download-only cookie exclusion;
+     history remains excluded. Reports never store cookie contents or cookie
+     source/browser/profile details; applied retries require explicit cookie
+     access again. Implementation checks use synthetic cookies and mocked
+     browsers only. Real browser access and live verification remain separate.
 - **provenance:** OpenCode mode adopted from `diegoami/harness_template` tag
   `r5` (commit `f22685d884c08381c5c4d6dcc3786aa394467c00`), on 2026-09-27.
   The project had adopted the shared principles and
