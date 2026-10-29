@@ -97,7 +97,8 @@ The PR body records the gates, deliberate-break verification, and merge checks.
 <!-- SLOT:BEGIN -->
 
 - **product:** youtube3 — a Python wrapper over the YouTube Data API v3,
-  published on PyPI as `youtube3` (2.6.2, released 2026-09-26). Its point is
+  published on PyPI as `youtube3` (2.8.0; owner reported publication on
+  2026-10-29). Its point is
   the **convenience operations** the raw API lacks, for the owner's own
   account: copy or move a range of a playlist, publish a whole playlist, like
   and subscribe, check region blocks, update snippets and thumbnails. It is
@@ -179,10 +180,12 @@ The PR body records the gates, deliberate-break verification, and merge checks.
     (owner, 2026-09-25: "yt-dlp is not viable for a library I want to
     distribute"): the cookies are the whole Google login, reading the site this
     way is against YouTube's terms, and it gives no watch times.
-  - *`thumbnails.set` takes a local file, not a URL* (max 2 MB), and needs a
-    phone-verified channel; videos **uploaded** through an unaudited API project
-    are locked private, so uploads happen in Studio and the API does the
-    metadata, thumbnail and publishing.
+  - *`thumbnails.set` takes a local file, not a URL*, and custom video
+    thumbnails need an eligible channel. Current library validation still caps
+    video thumbnails at 2 MB. Next-release work (#127) must recheck current
+    upload/image limits, quota and playlist-cover APIs against the official
+    reference. The former Studio-only upload policy is amended by owner
+    decision 7; Studio workflows remain supported.
 - **open work:** `ROADMAP.md`, and GitHub issues on `diegoami/youtube3`.
 - **owner decisions:**
   1. **Python 3.11+.** Raised from 3.10 on 2026-09-23 because
@@ -214,6 +217,15 @@ The PR body records the gates, deliberate-break verification, and merge checks.
      source/browser/profile details; applied retries require explicit cookie
      access again. Implementation checks use synthetic cookies and mocked
      browsers only. Real browser access and live verification remain separate.
+  7. **Next-release publishing and thumbnails** (owner, 2026-10-29, #127):
+     requested reusable publishing, thumbnail creation/editing and playlist
+     artwork, using `lynxupercluster_thumbnailgenerator` as a source. The owner
+     confirmed **both** per-video thumbnails for a playlist and a playlist cover,
+     and explicitly chose **"Also add direct video-file uploads"**. This amends
+     the former Studio-only scope. Record and split the request before
+     implementation; no live upload or other account write is authorized by
+     this planning request. Existing dry-run, profile and G5 approval rules
+     remain in force.
 - **provenance:** OpenCode mode adopted from `diegoami/harness_template` tag
   `r5` (commit `f22685d884c08381c5c4d6dcc3786aa394467c00`), on 2026-09-27.
   The project had adopted the shared principles and

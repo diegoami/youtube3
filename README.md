@@ -426,8 +426,9 @@ where `export` is a dict or the path of an export file.
 
 ## PUBLISHING
 
-Upload the video in YouTube Studio (videos uploaded through an unaudited API
-project are locked private), then set everything else in one command:
+Upload the video in YouTube Studio, then set its metadata, thumbnail and
+publishing time in one command. Direct video-file uploads are requested for
+the next release ([#127](https://github.com/diegoami/youtube3/issues/127)):
 
 ```
 youtube3 publish VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00
