@@ -741,3 +741,42 @@ pytest
 The tests run offline: they build the client over canned responses
 (`tests/conftest.py`) and never touch a real account. The process for changes
 is in `AGENTS.md`, the requests in `ROADMAP.md`.
+
+## PUBLISHING CONFIGURATION
+
+Channel/series presets are separate, explicitly selected JSON/YAML files; OAuth
+profiles and credentials are never part of them. JSON works in the base install;
+YAML needs `pip install "youtube3[publishing]"` (or the artwork extra).
+
+```json
+{
+  "schema": "youtube3.publishing-presets.v1",
+  "defaults": {"privacy": "private", "tags": ["my-series"]},
+  "presets": {
+    "series": {
+      "profile": "mybrand",
+      "expected_channel_id": "UC_REPLACE_ME",
+      "variables": {"series": "My series"},
+      "title_template": "{series} — Episode {episode:03d}",
+      "thumbnail_template": "artwork/{stem}.png"
+    }
+  }
+}
+```
+
+```sh
+youtube3 publishing --file episode.mp4 --presets presets.json --preset series --episode 7
+youtube3 publishing --file episode.mp4 --presets presets.json --preset series --episode 7 --job job.json --apply
+```
+
+Defaults are overridden by the named preset, then explicit CLI fields. Thumbnail
+paths resolve beside the preset file; CLI paths resolve from the current folder.
+`expected_channel_id` rejects a wrong destination before writes. Templates allow
+simple variables and bounded integer formatting such as `{episode:03d}`; built-in
+file variables are `stem` and `filename`, plus `episode` when given. No attribute
+access, indexing, expressions or code execution. Only `_template` fields expand;
+literal descriptions/titles retain braces. A literal CLI title replaces a preset
+template. Unknown fields and duplicate keys fail clearly. Supported settings are
+profile/expected channel, title/description/tags/thumbnail, privacy/publication
+time, category, audience and retries. Resume uses the checkpoint's fixed settings.
+Python: `youtube3.publishing_config.resolve_preset(path, name, overrides=..., context=...)`.
