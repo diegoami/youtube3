@@ -16,7 +16,7 @@
 | the six gates disciplines | `PRINCIPLES.md` |
 | the verdict protocol: revision scope and target proof, rounds, materiality, reviewer sessions, fallback, waiver, owner decisions, defect path, completion note, merge policy, `design: none` scoping, bootstrap, comment-not-approval | `PRINCIPLES.md` |
 | the implementation process, roles, reviewer selection and project-specific amendments | `AGENTS.md` |
-| Claude Code role guidance | `CLAUDE.md` |
+| tool entrypoint guidance | `CLAUDE.md` |
 | the project rules: product, paths, never-echo, the gates table, conventions, one source of truth, decided-not-to-reopen, open work | `AGENTS.md`, the project slot |
 | the iteration overlay and the fork-provenance table | `PLAN.md` |
 | feature requests and artistic license | `ROADMAP.md` |
@@ -76,8 +76,8 @@ and does not relax CI.
 
 - Records are files. An **implementation review** is
   `reviews/NNN-<slug>-impl-NN.md`, naming the revision it covers. A **design
-  record** (`design/NNN-<slug>.md`) exists only in OpenCode mode, which has a
-  design stage; Claude mode has none, so it has no design records.
+  record** (`design/NNN-<slug>.md`) exists only when the project slot enables a
+  design stage; with `design: none` there is no design record.
 - A verdict or review covers **the named revision**, and the reviewer shows the
   target before judging: the revision, and the files of the change — the pull
   request's head and file list where a pull request exists, otherwise the diff
@@ -99,15 +99,14 @@ and does not relax CI.
   reviewer re-reads the current revision.
 - **Rounds.** Rounds are counted per stage: each appended design verdict, and
   each implementation review file (`-NN`), is one round. Rounds 1 and 2 may
-  rework; a third round that does not end clean — `AGREE` in OpenCode mode, the
-  statement that no blocking finding remains in Claude mode — stops and goes to
+  rework; a third round that does not end clean (`AGREE`) stops and goes to
   the owner, who decides: re-scope, record a decision, or, at the implementation
   stage only, waive. It does not loop.
 - **Fallback.** A failed, cancelled or unavailable review is no review and no
   approval. Retry, or select another reviewer; record its model id and who
-  selected it; the fallback becomes the designated reviewer for its stage. Each
-  mode states where its fallback reviewer may come from (`AGENTS.md`,
-  `CLAUDE.md`).
+  selected it; the fallback becomes the designated reviewer for its stage.
+  The owner selects it under the independence rules in `AGENTS.md`; no reviewer
+  tool/model/provider is preselected or recommended.
 - **Waiver.** An implementation-stage exception only, recorded, and never called
   AGREE. Bypassing the design stage is an owner amendment, recorded in the
   design record.
@@ -118,10 +117,10 @@ and does not relax CI.
   withdrawn or re-scoped, recorded; it receives no approval and is not merged
   around.
 - **Defect path.** A defect found after a change landed is recorded and fixed by
-  a change that lands the assertion that would have caught it. In OpenCode mode
-  the fix takes the design stage unless all four hold: limited to the recorded
+  a change that lands the assertion that would have caught it. If a design stage
+  exists, the fix takes it unless all four hold: limited to the recorded
   defect; no behaviour beyond it; no change to what a check measures; no process
-  change. Claude mode has no design stage; the fix is reviewed like any change.
+  change. With `design: none`, the fix follows the project's milestone review.
 - **Completion.** When a change lands, the implementer appends a short
   **completion note** to the change's record: each done-when item and the
   evidence that closed it — the CI run, the gate output. The note is
@@ -131,18 +130,17 @@ and does not relax CI.
   that does any of that is not a completion note. The latest verdict still
   governs.
 - **Merge policy.** The owner merges, unless the project slot records
-  `merge: auto`; then a change merges when its review is clean — `AGREE` in
-  OpenCode mode, no blocking finding in Claude mode — and every gate is green.
-  A project that takes `auto` states its merge conditions in its slot, and the
-  pull request records the merge.
+  `merge: auto`; then the project slot defines the merge conditions, and every
+  affected gate must be green. The pull request records the merge. In this
+  repository, milestone review gates the tag rather than PR merging (`AGENTS.md`).
 - **`design: none`.** Where a project's slot records `design: none`, every
   reference to a design record in this file resolves to the implementation
   review file; the design stage does not exist in either mode; the defect path
   is the implementation review; and an owner amendment that would otherwise
   bypass a design stage is recorded in the project slot.
 - **Bootstrap.** A change to a harness file that changes what a builder must do
-  or how the process works takes the review its mode requires — both stages in
-  OpenCode, the review in Claude; a pure typo takes neither.
+  or how the process works takes the project-required review; a pure typo takes
+  neither stage.
 - **Comment, not approval.** The verdict is posted as a comment (or written to
   the file locally); it is never an approval action. Under the single GitHub
   account an approval is impossible, and the signature is the only marker of

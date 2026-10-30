@@ -1,4 +1,4 @@
-> Guidance for coding agents. Claude Code also uses [`CLAUDE.md`](CLAUDE.md).
+> Guidance for coding agents. Tool entrypoints such as [`CLAUDE.md`](CLAUDE.md) link here.
 > Shared principles and verdict protocol are in [`PRINCIPLES.md`](PRINCIPLES.md).
 > **Read both before implementing.**
 
@@ -23,7 +23,9 @@ The owner decisions below are authoritative for this repository.
   milestone as a whole, not an individual pull request, and signs its own
   verdict.
 - The reviewer must be from a different model family than the agents that
-  implemented the milestone. There is no fixed reviewer tool or model.
+  implemented the milestone. Reviewer selection belongs to the owner; guidance,
+  issues and handoffs must not name or recommend a default reviewer tool, model
+  or provider. Record actual authorship and the selected reviewer factually.
 
 ## Change process
 
@@ -191,20 +193,15 @@ The PR body records the gates, deliberate-break verification, and merge checks.
   1. **Python 3.11+.** Raised from 3.10 on 2026-09-23 because
      `google.api_core` stops releasing for 3.10 after its end of life on
      2026-10-04.
-  2. **Review:** the owner decision on 2026-09-23 was Claude Code only with an
-     independent review at milestones. On 2026-09-27 the owner amended it,
-     quoting issue #88,
-     "from now on **OpenCode implements** (DeepSeek), and **a model from a
-     different family reviews** each milestone (Claude Code, or GPT-6 Luna in
-     OpenCode)." This amends the former Claude-Code-only decision. Milestones
-     are tags, review is per milestone rather than per PR, and the owner runs
-     the review-handoff prompt in a fresh session.
-     On 2026-10-30 the owner removed the fixed implementer assignment: any
-     coding agent may implement the owner's requests, without a tool/model
-     permission check. Records identify the actual author. Independent milestone
-     review by a different model family remains required; reviewer selection
-     is not restricted to the former named tools/models. This supersedes the
-     implementation and reviewer assignments quoted above.
+  2. **Review:** independent review covers milestones, not individual PRs.
+     Earlier fixed tool/model assignments (#88) were superseded on 2026-10-30
+     (#135/#136): any coding agent may implement the owner's requests, and
+     records identify the actual author. The reviewer is chosen by the owner
+     in a fresh session and must be from a different model family than the
+     milestone's implementers. The owner explicitly reaffirmed that reviewer
+     references must not hardcode or recommend a tool/model/provider when
+     preparing the v2.9.0 review (#158). The user-facing handoff is one line;
+     detailed scope and evidence live in the milestone issue.
   3. **Records live on GitHub.** The proposal issue is the design record; the
      milestone issue, its verdict comment and `review` issues are the review
      record; there are no `design/` or `reviews/` directories. The completion
@@ -232,11 +229,10 @@ The PR body records the gates, deliberate-break verification, and merge checks.
      implementation; no live upload or other account write is authorized by
      this planning request. Existing dry-run, profile and G5 approval rules
      remain in force.
-- **provenance:** OpenCode mode adopted from `diegoami/harness_template` tag
+- **provenance:** Implementation/review guidance adopted from `diegoami/harness_template` tag
   `r5` (commit `f22685d884c08381c5c4d6dcc3786aa394467c00`), on 2026-09-27.
   The project had adopted the shared principles and
-  project slot from harness `r4`; this change moves the slot and tool-neutral
-  process here from `CLAUDE.md`, while `CLAUDE.md` retains only its
-  Claude-specific reviewer role.
+  project slot from harness `r4`; the slot and tool-neutral process live here,
+  and tool entrypoints link to this shared guidance.
 
 <!-- SLOT:END -->
