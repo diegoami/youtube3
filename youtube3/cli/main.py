@@ -23,6 +23,7 @@ COMMANDS = {
     "publish": "publish_video",
     "upload": "upload_video",
     "publishing": "publish_job",
+    "publishing-batch": "publishing_batch",
     "playlist": {
         "show": "show_files_in_playlist",
         "move": "move_videos_playlist",

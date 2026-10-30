@@ -119,8 +119,8 @@ def preset_layers(path, name):
     return [settings_layer(document.get("defaults", {}), root), settings_layer(document["presets"][name], root)]
 
 
-def resolve_settings(*layers, context=None):
-    """Resolve left-to-right precedence, then expand only explicitly templated fields."""
+def merge_layers(*layers):
+    """Merge validated layers without expanding templates yet."""
     merged = {}
     for layer in layers:
         layer = settings_layer(layer)
@@ -133,6 +133,12 @@ def resolve_settings(*layers, context=None):
         merged.update(layer)
         if variables:
             merged["variables"] = variables
+    return merged
+
+
+def resolve_settings(*layers, context=None):
+    """Resolve left-to-right precedence, then expand only explicitly templated fields."""
+    merged = merge_layers(*layers)
     values = {**merged.pop("variables", {}), **(context or {})}
     formatter = string.Formatter()
     for field in ("title", "description", "thumbnail"):
@@ -172,7 +178,7 @@ VIDEO_FIELDS = {"schema", "file", "video_id", "presets", "preset", "settings", "
 
 
 def resolve_video_config(path=None, *, presets=None, preset=None, overrides=None,
-                         file=None, video_id=None, episode=None):
+                         file=None, video_id=None, episode=None, defaults=None):
     """Resolve preset defaults → named preset → per-video settings → CLI overrides.
 
     Explicit false/empty/null values survive. Input/preset/artwork paths keep
@@ -211,6 +217,6 @@ def resolve_video_config(path=None, *, presets=None, preset=None, overrides=None
     if episode is not None:
         context["episode"] = episode
     layers = preset_layers(preset_path, preset_name) if preset_path else []
-    settings = resolve_settings(*layers, settings_layer(document.get("settings", {}), root),
+    settings = resolve_settings(*layers, defaults or {}, settings_layer(document.get("settings", {}), root),
                                 overrides or {}, context=context)
     return {"file": source_file, "video_id": source_id, "settings": settings}

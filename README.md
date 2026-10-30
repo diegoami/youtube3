@@ -828,3 +828,35 @@ and [update](https://developers.google.com/youtube/data/reference/rest/v3/videos
 references and bundled discovery. The audio-language field is defined in the
 resource/discovery even though the method prose does not enumerate it. Actual
 channel permissions, processing and eligibility need owner-approved G5.
+
+## PUBLISHING BATCH PLANS
+
+```sh
+youtube3 publishing-batch plan examples/publishing/batch.yaml
+youtube3 publishing-batch plan batch.yaml --out plan.json
+```
+
+A batch lists explicit entries with stable unique IDs, source files or existing
+video IDs, episode numbers, settings, optional per-video `config` paths, and
+`playlists` destinations. Nothing enumerates a directory again after planning.
+Precedence is preset defaults → preset → batch settings/cadence → per-video
+file settings → entry settings → CLI profile override. Relative paths use the
+file defining them. Duplicate entry IDs and repeated sources are rejected.
+Every job and destination playlist is preflighted for the selected channel.
+A preview writes no files/account data; `--out` explicitly saves the fixed plan.
+
+Cadence uses `schedule: {start: "2099-01-01T18:00:00+01:00", interval_minutes: 1440}`.
+The start requires an explicit UTC offset; intervals mean elapsed minutes, not
+wall-clock calendar days across daylight-saving changes. Results are fixed UTC
+timestamps. Per-video `publish_at` overrides cadence, so individual calendar/DST
+choices can be specified explicitly. Omitted schedules leave new media private.
+Thumbnails may refer to supplied files or earlier local-renderer outputs.
+
+Python: `publishing_batch.resolve_batch(path)` resolves locally;
+`plan_batch(client, entries)` performs read-only preflight;
+`save_plan`/`load_plan` preserve the fixed mapping. Playlist membership uses a
+video-filtered read before insertion and can perform read-only recovery for
+uncertain earlier writes. Contracts checked 2026-10-30 against official
+[playlistItems.list](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list)
+and [insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/insert).
+No playlist reordering is performed.

@@ -1,0 +1,18 @@
+schema: youtube3.publishing-batch.v1
+presets: presets.json
+preset: series
+settings:
+  made_for_kids: false
+schedule:
+  start: "2099-01-01T18:00:00+01:00"
+  interval_minutes: 1440
+# Optional: playlists: [PL_REPLACE_ME]
+entries:
+  - id: episode-7
+    file: episode7.mp4
+    episode: 7
+    settings:
+      description: The seventh episode.
+  - id: episode-8
+    file: episode8.mp4
+    episode: 8
