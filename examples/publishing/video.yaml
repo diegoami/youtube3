@@ -1,0 +1,12 @@
+schema: youtube3.publishing-video.v1
+presets: presets.json
+preset: series
+file: episode.mp4
+episode: 7
+settings:
+  description: |
+    A description for this episode.
+    Edit this file and the preset before applying.
+  tags: [my-series, episode-7]
+  made_for_kids: false
+  privacy: private

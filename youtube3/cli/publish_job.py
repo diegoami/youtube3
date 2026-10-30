@@ -9,10 +9,12 @@ from youtube3 import publishing_job, publishing_config
 
 def main():
     arguments = parser(__doc__)
-    source = arguments.add_mutually_exclusive_group(required=True)
+    source = arguments.add_mutually_exclusive_group()
     source.add_argument("--file", type=Path)
     source.add_argument("--video-id")
     source.add_argument("--resume", type=Path)
+    arguments.add_argument("--config", type=Path, help="per-video JSON/YAML configuration")
+    arguments.add_argument("--unset", action="append", default=[], choices=("title", "description", "tags", "thumbnail", "privacy", "publish_at", "made_for_kids", "expected_channel_id", "profile"), help="clear an inherited optional setting")
     arguments.add_argument("--presets", type=Path, help="explicit channel/series presets JSON or YAML")
     arguments.add_argument("--preset", help="named preset in --presets")
     arguments.add_argument("--episode", type=int, help="episode template variable")
@@ -29,9 +31,7 @@ def main():
     arguments.add_argument("--apply", action="store_true")
     args = arguments.parse_args()
     try:
-        if bool(args.presets) != bool(args.preset):
-            arguments.error("--presets and --preset must be given together")
-        if args.resume and (args.presets or args.preset or args.episode is not None):
+        if args.resume and (args.config or args.unset or args.presets or args.preset or args.episode is not None):
             arguments.error("resume uses saved settings; omit presets/template variables")
         if args.resume and (args.job or any(value is not None for value in (args.title, args.description, args.tags,
                                        args.thumbnail, args.privacy, args.schedule, args.made_for_kids))):
@@ -43,14 +43,14 @@ def main():
         settings = {}
         if not args.resume:
             overrides = {key: value for key, value in {"title": args.title, "description": args.description,
-                "tags": args.tags.split(",") if args.tags is not None else None, "thumbnail": str(args.thumbnail) if args.thumbnail else None,
+                "tags": (args.tags.split(",") if args.tags else []) if args.tags is not None else None, "thumbnail": str(args.thumbnail) if args.thumbnail else None,
                 "privacy": args.privacy, "publish_at": args.schedule, "category_id": args.category_id,
                 "made_for_kids": args.made_for_kids, "profile": args.profile}.items() if value is not None}
-            context = {"stem": args.file.stem, "filename": args.file.name} if args.file else {}
-            if args.episode is not None:
-                context["episode"] = args.episode
-            settings = (publishing_config.resolve_preset(args.presets, args.preset, overrides=overrides, context=context)
-                        if args.presets else publishing_config.resolve_settings(overrides, context=context))
+            overrides.update({field: None for field in args.unset})
+            resolved = publishing_config.resolve_video_config(args.config, presets=args.presets, preset=args.preset,
+                overrides=overrides, file=args.file, video_id=args.video_id, episode=args.episode)
+            args.file, args.video_id = resolved["file"], resolved["video_id"]
+            settings = resolved["settings"]
             args.profile = settings.pop("profile", args.profile)
         youtube = client(args)
         publishing_config.check_destination(youtube, settings)
