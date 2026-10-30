@@ -10,7 +10,7 @@ from ..auth import write_private
 
 
 COMMANDS = {
-    "artwork": {"render": "artwork_render"},
+    "artwork": {"render": "artwork_render", "playlist": "artwork_playlist"},
     "download": {"video": "download_video", "playlist": "download_playlist", "formats": "download_formats",
                  "retry": "download_retry"},
     "profiles": "profiles",
