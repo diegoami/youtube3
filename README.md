@@ -801,3 +801,30 @@ defines them; CLI paths use the current folder. A per-video file uses schema
 `episode` and `settings`. Settings have the same validated fields as presets.
 Python: `resolve_video_config(path, overrides=..., file=..., episode=...)`
 returns the effective source and settings without login or account calls.
+
+Expanded metadata settings are available in presets, video files, Python upload
+and publishing plans, and the `upload`/`publishing` commands:
+
+| Setting | CLI | Values |
+|---|---|---|
+| `made_for_kids` | `--made-for-kids` / `--no-made-for-kids` | true/false |
+| `default_language` | `--default-language` | language tag, e.g. en-US |
+| `default_audio_language` | `--default-audio-language` | default audio-track language |
+| `license` | `--license` | youtube / creativeCommon |
+| `embeddable` | `--embeddable` / `--no-embeddable` | true/false |
+| `contains_synthetic_media` | positive / `--no-contains-synthetic-media` | true/false |
+| `public_stats_viewable` | positive / `--no-public-stats-viewable` | true/false |
+| `notify_subscribers` | positive / `--no-notify-subscribers` | true/false; new uploads only |
+| `retries`, `chunk_size` | `--retries`, `--chunk-size` | bounded retries; chunk bytes |
+
+Omitted metadata fields preserve existing values on updates; explicit false is
+sent. Language/category/status controls are validated before writes. Publishing
+jobs still upload privately and change final visibility last. Old v1 checkpoints
+without the extra fields remain readable. No arbitrary API payloads are accepted.
+Contracts checked 2026-10-30 against the official
+[video resource](https://developers.google.com/youtube/data/reference/rest/v3/videos),
+[insert](https://developers.google.com/youtube/data/reference/rest/v3/videos/insert)
+and [update](https://developers.google.com/youtube/data/reference/rest/v3/videos/update)
+references and bundled discovery. The audio-language field is defined in the
+resource/discovery even though the method prose does not enumerate it. Actual
+channel permissions, processing and eligibility need owner-approved G5.

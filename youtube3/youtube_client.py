@@ -137,12 +137,17 @@ class YoutubeClient:
 
     def upload_video(self, file, *, title, description="", category_id="22", tags=None,
                      privacy="private", made_for_kids=None, notify_subscribers=False,
-                     retries=3, chunk_size=8 * 1024 * 1024, apply=False, progress=None):
+                     retries=3, chunk_size=8 * 1024 * 1024, apply=False, progress=None,
+                     default_language=None, default_audio_language=None, license=None, embeddable=None,
+                     public_stats_viewable=None, contains_synthetic_media=None):
         """Preview a local video upload by default; apply uses one resumable session."""
         from .upload import plan_video_upload, apply_video_upload
         plan = plan_video_upload(self, file, title=title, description=description, category_id=category_id,
                                  tags=tags, privacy=privacy, made_for_kids=made_for_kids,
-                                 notify_subscribers=notify_subscribers, retries=retries, chunk_size=chunk_size)
+                                 notify_subscribers=notify_subscribers, retries=retries, chunk_size=chunk_size,
+                                 default_language=default_language, default_audio_language=default_audio_language,
+                                 license=license, embeddable=embeddable, public_stats_viewable=public_stats_viewable,
+                                 contains_synthetic_media=contains_synthetic_media)
         return {"plan": plan, "applied": apply,
                 "result": apply_video_upload(self, plan, progress=progress) if apply else None}
 

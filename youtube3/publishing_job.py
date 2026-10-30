@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from . import artwork, publish, upload
+from . import artwork, publish, upload, publishing_metadata
 from .thumbnail_batch import checked_image
 
 SCHEMA = "youtube3.publishing-job.v1"
@@ -32,8 +32,10 @@ def _owner(client, video_id, channel_id):
 
 
 def plan_publishing_job(client, *, file=None, video_id=None, title=None, description=None, tags=None,
-                        thumbnail=None, privacy=None, publish_at=None, category_id="22", made_for_kids=None,
-                        retries=3):
+                        thumbnail=None, privacy=None, publish_at=None, category_id=None, made_for_kids=None,
+                        retries=3, chunk_size=upload.DEFAULT_CHUNK_SIZE, notify_subscribers=False,
+                        default_language=None, default_audio_language=None, license=None, embeddable=None,
+                        public_stats_viewable=None, contains_synthetic_media=None):
     """Preview all four stages; no files/uploads/account changes are made.
 
     New uploads start private. Public/unlisted visibility or scheduling is the
@@ -52,11 +54,18 @@ def plan_publishing_job(client, *, file=None, video_id=None, title=None, descrip
             raise ValueError("A scheduled video must remain private until publication")
         publish_at = when.isoformat().replace("+00:00", "Z")
     metadata = {"title": title, "description": description, "tags": tags}
+    extra_options = dict(category_id=category_id, made_for_kids=made_for_kids, default_language=default_language,
+                         default_audio_language=default_audio_language, license=license, embeddable=embeddable,
+                         public_stats_viewable=public_stats_viewable, contains_synthetic_media=contains_synthetic_media)
+    publishing_metadata.parts(extra_options)
+    metadata.update({key: value for key, value in extra_options.items() if value is not None})
     image = checked_image(thumbnail) if thumbnail is not None else None
     upload_plan = None
     if file is not None:
         upload_plan = upload.plan_video_upload(client, file, title=title, description=description or "",
-            tags=tags, category_id=category_id, privacy="private", made_for_kids=made_for_kids, retries=retries)
+            tags=tags, category_id=category_id or "22", privacy="private", made_for_kids=made_for_kids, retries=retries,
+            chunk_size=chunk_size, notify_subscribers=notify_subscribers,
+            **{key: value for key, value in extra_options.items() if key not in ("category_id", "made_for_kids")})
     else:
         _owner(client, video_id, channel_id)
         checked = publish.plan_publish(client, video_id, **metadata, privacy=privacy, publish_at=publish_at)
@@ -94,7 +103,8 @@ def validate_job(job):
         raise ValueError("Job must identify its destination channel")
     if job["video_id"] is not None and (not isinstance(job["video_id"], str) or not job["video_id"]):
         raise ValueError("Invalid publishing video ID")
-    if not isinstance(job["metadata"], dict) or set(job["metadata"]) != {"title", "description", "tags"}:
+    if (not isinstance(job["metadata"], dict) or not {"title", "description", "tags"} <= set(job["metadata"])
+            or set(job["metadata"]) - ({"title", "description", "tags"} | publishing_metadata.FIELDS)):
         raise ValueError("Invalid publishing metadata fields")
     if not isinstance(job["publication"], dict) or set(job["publication"]) != {"privacy", "publish_at"}:
         raise ValueError("Invalid publication fields")
@@ -107,9 +117,9 @@ def validate_job(job):
             raise ValueError("Invalid upload plan fields")
         if set(spec["file"]) != {"path", "bytes", "modified_ns", "type"} or set(spec["body"]) != {"snippet", "status"}:
             raise ValueError("Invalid upload input fields")
-        if set(spec["body"]["snippet"]) - {"title", "description", "categoryId", "tags"}:
+        if set(spec["body"]["snippet"]) - {"title", "description", "categoryId", "tags", "defaultLanguage", "defaultAudioLanguage"}:
             raise ValueError("Invalid upload metadata fields")
-        if set(spec["body"]["status"]) - {"privacyStatus", "selfDeclaredMadeForKids"}:
+        if set(spec["body"]["status"]) - {"privacyStatus", "selfDeclaredMadeForKids", "license", "embeddable", "publicStatsViewable", "containsSyntheticMedia"}:
             raise ValueError("Invalid upload status fields")
         if spec["body"]["status"].get("privacyStatus") != "private":
             raise ValueError("Publishing jobs must upload privately")

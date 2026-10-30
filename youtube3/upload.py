@@ -8,7 +8,7 @@ import httplib2
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-from . import publish
+from . import publish, publishing_metadata
 
 CHUNK_UNIT = 256 * 1024
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
@@ -28,7 +28,9 @@ class UploadError(ValueError):
 
 
 def upload_spec(file, *, title, description="", category_id="22", tags=None, privacy="private",
-                made_for_kids=None, notify_subscribers=False, retries=3, chunk_size=DEFAULT_CHUNK_SIZE):
+                made_for_kids=None, notify_subscribers=False, retries=3, chunk_size=DEFAULT_CHUNK_SIZE,
+                default_language=None, default_audio_language=None, license=None, embeddable=None,
+                public_stats_viewable=None, contains_synthetic_media=None):
     """Validate local input and metadata without login, upload construction or account calls."""
     path = Path(file).expanduser().resolve()
     if not path.is_file():
@@ -66,6 +68,14 @@ def upload_spec(file, *, title, description="", category_id="22", tags=None, pri
     status = {"privacyStatus": privacy}
     if made_for_kids is not None:
         status["selfDeclaredMadeForKids"] = made_for_kids
+    try:
+        extra_snippet, extra_status = publishing_metadata.parts(dict(default_language=default_language,
+            default_audio_language=default_audio_language, license=license, embeddable=embeddable,
+            public_stats_viewable=public_stats_viewable, contains_synthetic_media=contains_synthetic_media))
+    except ValueError as error:
+        raise UploadError(str(error), outcome="not_started") from None
+    snippet.update(extra_snippet)
+    status.update(extra_status)
     return {"file": {"path": str(path), "bytes": stat.st_size, "modified_ns": stat.st_mtime_ns,
                      "type": VIDEO_TYPES[path.suffix.lower()]}, "body": {"snippet": snippet, "status": status},
             "notify_subscribers": notify_subscribers, "retries": retries, "chunk_size": chunk_size,
@@ -82,10 +92,14 @@ def plan_video_upload(client, file, **options):
 def _validate_plan(client, plan):
     body = plan["body"]
     snippet, status = body["snippet"], body["status"]
+    extras = {key: snippet[value] for key, value in publishing_metadata.SNIPPET_FIELDS.items()
+              if key != "category_id" and value in snippet}
+    extras.update({key: status[value] for key, value in publishing_metadata.STATUS_FIELDS.items()
+                   if key != "made_for_kids" and value in status})
     expected = plan_video_upload(client, plan["file"]["path"], title=snippet["title"],
         description=snippet.get("description", ""), category_id=snippet.get("categoryId", "22"),
         tags=snippet.get("tags"), privacy=status["privacyStatus"], made_for_kids=status.get("selfDeclaredMadeForKids"),
-        notify_subscribers=plan["notify_subscribers"], retries=plan["retries"], chunk_size=plan["chunk_size"])
+        notify_subscribers=plan["notify_subscribers"], retries=plan["retries"], chunk_size=plan["chunk_size"], **extras)
     if expected != plan:
         raise UploadError("File, upload settings or destination changed after planning", outcome="not_started")
 
