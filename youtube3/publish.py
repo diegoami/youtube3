@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
 from .likes import _reason
+from . import publishing_metadata
 
 logger = logging.getLogger("youtube3")
 
@@ -150,14 +151,20 @@ def plan_publish(
     privacy=None,
     publish_at=None,
     now=None,
+    category_id=None, default_language=None, default_audio_language=None, made_for_kids=None,
+    license=None, embeddable=None, public_stats_viewable=None, contains_synthetic_media=None,
 ):
     """Read the video and work out what would change; nothing is written."""
+    extra_snippet, extra_status = publishing_metadata.parts(dict(category_id=category_id,
+        default_language=default_language, default_audio_language=default_audio_language, made_for_kids=made_for_kids,
+        license=license, embeddable=embeddable, public_stats_viewable=public_stats_viewable,
+        contains_synthetic_media=contains_synthetic_media))
     items = client.youtube.videos().list(id=video_id, part="snippet,status").execute().get("items")
     if not items:
         raise PublishError(f"{video_id}: no such video, or not one of yours")
     snippet = writable(items[0]["snippet"], WRITABLE_SNIPPET)
     status = writable(items[0]["status"], WRITABLE_STATUS)
-    new_snippet, new_status = dict(snippet), dict(status)
+    new_snippet, new_status = {**snippet, **extra_snippet}, {**status, **extra_status}
     errors = []
 
     if title is not None:

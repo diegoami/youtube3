@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .common import client, parser
-from youtube3 import publishing_job, publishing_config
+from youtube3 import publishing_job, publishing_config, publishing_metadata
 
 
 def main():
@@ -26,12 +26,14 @@ def main():
     arguments.add_argument("--privacy", choices=("private", "unlisted", "public"))
     arguments.add_argument("--schedule")
     arguments.add_argument("--category-id", default=None)
-    arguments.add_argument("--made-for-kids", action="store_true", default=None)
+    publishing_metadata.add_arguments(arguments)
+    arguments.add_argument("--retries", type=int)
+    arguments.add_argument("--chunk-size", type=int)
     arguments.add_argument("--recover-video-id", help="explicit ID found after an uncertain upload; requires --resume --apply")
     arguments.add_argument("--apply", action="store_true")
     args = arguments.parse_args()
     try:
-        if args.resume and (args.config or args.unset or args.presets or args.preset or args.episode is not None):
+        if args.resume and (any(getattr(args, key) is not None for key in ("default_language", "default_audio_language", "license", "embeddable", "public_stats_viewable", "contains_synthetic_media", "notify_subscribers", "retries", "chunk_size", "category_id")) or args.config or args.unset or args.presets or args.preset or args.episode is not None):
             arguments.error("resume uses saved settings; omit presets/template variables")
         if args.resume and (args.job or any(value is not None for value in (args.title, args.description, args.tags,
                                        args.thumbnail, args.privacy, args.schedule, args.made_for_kids))):
@@ -46,6 +48,9 @@ def main():
                 "tags": (args.tags.split(",") if args.tags else []) if args.tags is not None else None, "thumbnail": str(args.thumbnail) if args.thumbnail else None,
                 "privacy": args.privacy, "publish_at": args.schedule, "category_id": args.category_id,
                 "made_for_kids": args.made_for_kids, "profile": args.profile}.items() if value is not None}
+            overrides.update({key: getattr(args, key) for key in ("default_language", "default_audio_language", "license",
+                "embeddable", "public_stats_viewable", "contains_synthetic_media", "notify_subscribers", "retries", "chunk_size")
+                if getattr(args, key) is not None})
             overrides.update({field: None for field in args.unset})
             resolved = publishing_config.resolve_video_config(args.config, presets=args.presets, preset=args.preset,
                 overrides=overrides, file=args.file, video_id=args.video_id, episode=args.episode)
