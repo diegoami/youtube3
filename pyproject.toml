@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
 ]
 dependencies = [
-    "google-api-python-client>=2",
+    "google-api-python-client>=2.201.0",
     "google-auth>=2",
     "google-auth-oauthlib>=1",
 ]

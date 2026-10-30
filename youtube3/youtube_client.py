@@ -135,6 +135,18 @@ class YoutubeClient:
         """Set a video's custom thumbnail; thumbnailUrl is the path of a local PNG or JPEG."""
         return self.youtube.thumbnails().set(videoId=videoId, media_body=thumbnail_upload(thumbnailUrl)).execute()
 
+    def list_playlist_images(self, playlist_id):
+        """List the playlist's image resources using the bundled discovery contract."""
+        from .playlist_cover import list_playlist_images
+        return list_playlist_images(self, playlist_id)
+
+    def set_playlist_cover(self, playlist_id, image, *, apply=False):
+        """Preview by default; explicitly apply a square local PNG/JPEG to the playlist cover."""
+        from .playlist_cover import plan_playlist_cover, apply_playlist_cover
+        plan = plan_playlist_cover(self, playlist_id, image)
+        return {"plan": plan, "applied": apply,
+                "response": apply_playlist_cover(self, plan) if apply else None}
+
     def get_video_snippet(self, video_id):
         video_info = self.get_video(video_id)
         return video_info["items"][0]["snippet"]
