@@ -463,6 +463,37 @@ Numbers of four or more digits use `x3` and must fit, rather than disappearing.
 Relative paths resolve next to the config file. All destinations are checked
 before the first render; a later rendering error can leave earlier outputs.
 
+### Playlist artwork
+
+```sh
+youtube3 artwork playlist --playlist-id PLAYLIST_ID --profile mybrand --background base.png --output-dir artwork
+youtube3 artwork playlist --snapshot snapshot.json --background base.png --output-dir artwork --save-plan plan.json
+youtube3 artwork playlist --plan plan.json --apply
+```
+
+`--playlist-id` reads metadata online; `--snapshot` and `--plan` are entirely
+offline. No option here writes to YouTube. A default preview writes no files;
+`--save-plan FILE` explicitly saves only the mapping. `--apply` saves the
+manifest (default `OUTPUT_DIR/artwork.json`) before generating images.
+
+Snapshot format: `{"playlist_id":"PL...","title":"My series","items":[
+{"video_id":"VIDEO_ID","position":1,"title":"First","available":true}]}`.
+Positions are 1-based originals; `--start`/`--end` are inclusive. Episode numbers
+are original position plus `--number-offset`; gaps/unavailable entries keep
+their numbers. Unavailable entries (`available:false`) get no image. Duplicate
+videos get separate position-prefixed filenames; later application must reject
+ambiguous duplicate-ID mappings. Each manifest includes a distinct square
+`cover` entry. The default video text is `Episode {episode}`; `--text`,
+`--cover-text`, font/color/position options customize it. Existing outputs
+require `--overwrite`. Rendering from a saved plan never refetches the playlist.
+A later rendering failure may leave earlier files; the saved mapping remains
+available for inspection/regeneration.
+
+Python: `youtube3.playlist_artwork.playlist_snapshot(client, playlist_id)` reads
+metadata; `plan_playlist_artwork(snapshot, background, output_dir, ...)` fixes
+the mapping; `save_manifest`/`load_manifest` persist it;
+`render_playlist_artwork(manifest, overwrite=False)` renders offline.
+
 ## PUBLISHING
 
 Upload the video in YouTube Studio, then set its metadata, thumbnail and
