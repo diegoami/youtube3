@@ -795,7 +795,7 @@ youtube3 publishing --config video.yaml --job job.json --apply
 ```
 
 See `examples/publishing/presets.json` and `video.yaml` for synthetic editable
-examples. `file`, `presets` and artwork paths resolve relative to the file that
+examples. Paths may be absolute, start with `~`, or be relative. `file`, `presets` and artwork paths resolve relative to the file that
 defines them; CLI paths use the current folder. A per-video file uses schema
 `youtube3.publishing-video.v1` and accepts `file` or `video_id`, `presets`/`preset`,
 `episode` and `settings`. Settings have the same validated fields as presets.
@@ -916,7 +916,7 @@ Reports contain selected metadata, local paths, hashes, IDs and stage states;
 no OAuth credentials, raw API errors or resumable-session URLs are stored.
 New queues and saved plans preserve existing files. Keep their checkpoint files,
 `*.jobs` directory and shared ledger together for recovery; locks do not require
-manual stale-lock deletion. No account action occurs without CLI `--apply`.
+manual stale-lock deletion. No account write occurs without CLI `--apply`.
 
 Python: `publishing_queue.initialize_queue(plan, path, ledger_path=...)`,
 `run_queue(client, path, resume=False, retry=False, select=None, stage=None, limit=None)`,

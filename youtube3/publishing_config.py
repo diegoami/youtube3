@@ -98,6 +98,12 @@ def validate_settings(settings):
     return settings
 
 
+def local_path(value, base_dir):
+    """Expand a home path before deciding whether a configuration base applies."""
+    path = Path(value).expanduser()
+    return (path if path.is_absolute() else Path(base_dir) / path).resolve()
+
+
 def settings_layer(settings, base_dir=None):
     """Normalize paths at their defining layer, preserving a template's origin."""
     result = deepcopy(validate_settings(settings))
@@ -198,7 +204,7 @@ def resolve_video_config(path=None, *, presets=None, preset=None, overrides=None
     source_file = str(Path(file).expanduser().resolve()) if file is not None else None
     source_id = video_id
     if file is None and video_id is None:
-        source_file = str((root / document["file"]).expanduser().resolve()) if document.get("file") is not None else None
+        source_file = str(local_path(document["file"], root)) if document.get("file") is not None else None
         source_id = document.get("video_id")
     if (source_file is None) == (source_id is None):
         raise ConfigurationError("Choose a video file or existing video ID")
@@ -206,7 +212,7 @@ def resolve_video_config(path=None, *, presets=None, preset=None, overrides=None
         raise ConfigurationError("Existing video ID must be non-empty")
     preset_path = Path(presets).expanduser().resolve() if presets is not None else None
     if preset_path is None and document.get("presets"):
-        preset_path = (root / document["presets"]).expanduser().resolve()
+        preset_path = local_path(document["presets"], root)
     preset_name = preset if preset is not None else document.get("preset")
     if bool(preset_path) != bool(preset_name):
         raise ConfigurationError("presets and preset must be selected together")

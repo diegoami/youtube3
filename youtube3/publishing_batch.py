@@ -43,7 +43,7 @@ def resolve_batch(path, *, overrides=None):
         if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes <= 0:
             raise ValueError("interval_minutes must be a positive integer")
         start = start.astimezone(timezone.utc)
-    preset_path = root / document["presets"] if document.get("presets") else None
+    preset_path = config.local_path(document["presets"], root) if document.get("presets") else None
     seen_ids, seen_sources, resolved = set(), set(), []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict) or set(entry) - {"id", "config", "file", "video_id", "settings", "episode", "playlists"}:
@@ -54,7 +54,7 @@ def resolve_batch(path, *, overrides=None):
         seen_ids.add(identity)
         if entry.get("file") is not None and entry.get("video_id") is not None:
             raise ValueError("Choose file or video_id per entry")
-        video_config = root / entry["config"] if entry.get("config") else None
+        video_config = config.local_path(entry["config"], root) if entry.get("config") else None
         video_document = config.read_document(video_config) if video_config else {}
         episode = entry.get("episode", video_document.get("episode", index + 1))
         defaults = dict(base)
@@ -64,7 +64,7 @@ def resolve_batch(path, *, overrides=None):
             presets=None if video_document.get("presets") else preset_path,
             preset=None if video_document.get("preset") else document.get("preset"),
             defaults=defaults, episode=episode,
-            file=root / entry["file"] if entry.get("file") else None, video_id=entry.get("video_id"),
+            file=config.local_path(entry["file"], root) if entry.get("file") else None, video_id=entry.get("video_id"),
             overrides=config.merge_layers(config.settings_layer(entry.get("settings", {}), root), overrides or {}))
         source = ("file", row["file"]) if row["file"] is not None else ("video", row["video_id"])
         if source in seen_sources:
