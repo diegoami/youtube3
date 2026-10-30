@@ -10,9 +10,9 @@ independent review"). Proposals and pull requests are not milestones and get
 no prompt; at most say in one line that a review is possible, and write the
 prompt only if the owner asks.
 
-OpenCode implements; a different model reviews, in whatever tool the owner
-picks. At each milestone, give the owner one prompt in a single fenced `text`
-block with nothing else in it. Tell the owner to run it in a **fresh
+Any coding agent may implement; a different model family reviews, in whatever
+tool the owner picks. At each milestone, give the owner one prompt in a single
+fenced `text` block with nothing else in it. Tell the owner to run it in a **fresh
 session** of that tool: a reused session carries its earlier conclusions. The
 reviewer starts with no context and posts its results to GitHub itself, so
 the prompt has to carry everything it needs, and it must not assume a tool.
@@ -67,9 +67,10 @@ prompt always fetches before it checks out.
 
 ```text
 You are the independent reviewer for <owner/repo>, working from a
-review-handoff prompt: this prompt defines your job. OpenCode did this work.
-Do
-not trust its description, its commit messages or its docs. Verify everything
+review-handoff prompt: this prompt defines your job.
+IMPLEMENTERS: <actual tools and models that implemented this milestone>.
+Your model family must differ from theirs. Do not trust their descriptions,
+commit messages or docs. Verify everything
 against the code.
 
 MILESTONE: <vX.Y.Z>, the tag to be created on the candidate if you agree

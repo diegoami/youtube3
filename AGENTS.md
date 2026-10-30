@@ -1,36 +1,35 @@
-> Guidance for OpenCode. Claude Code uses [`CLAUDE.md`](CLAUDE.md); the shared
-> principles and verdict protocol are in [`PRINCIPLES.md`](PRINCIPLES.md).
+> Guidance for coding agents. Claude Code also uses [`CLAUDE.md`](CLAUDE.md).
+> Shared principles and verdict protocol are in [`PRINCIPLES.md`](PRINCIPLES.md).
 > **Read both before implementing.**
 
-# The OpenCode mode
+# Implementation and review
 
-This file records the OpenCode-specific process and the complete project slot.
+This file records the implementation process and the complete project slot.
 The owner decisions below are authoritative for this repository.
 
 ## Roles and assignment
 
 | role | assignment |
 |---|---|
-| implementer | OpenCode, DeepSeek V4.1 Flash |
-| reviewer | a different model family per milestone: Claude Code or GPT-6 Luna in OpenCode |
+| implementer | The coding agent working on the owner's request; no fixed tool or model |
+| reviewer | Chosen by the owner per milestone, from a different model family than its implementers |
 
 - The implementer writes changes on a branch, opens the pull request, verifies
   the affected gates, and signs GitHub records and authored documents
-  `— Implementer (OpenCode, DeepSeek V4.1 Flash)`.
+  `— Implementer (<actual tool>, <actual model>)`.
 - The reviewer is chosen by the owner and runs the
   [`review-handoff`](.claude/skills/review-handoff/SKILL.md) prompt in a fresh
   session. The implementer never reviews its own work. The reviewer checks a
   milestone as a whole, not an individual pull request, and signs its own
   verdict.
-- The invariant is the different model family from the implementer. The two
-  allowed reviewer choices are current assignments, not a relaxation of that
-  invariant.
+- The reviewer must be from a different model family than the agents that
+  implemented the milestone. There is no fixed reviewer tool or model.
 
 ## Change process
 
 - Every change is made on a branch and submitted in a pull request against
   `master` on `diegoami/youtube3`.
-- OpenCode does not start F-10 (#86), close PRs #1 or #2, or run live checks
+- The implementer does not start F-10 (#86), close PRs #1 or #2, or run live checks
   until the owner explicitly says what is next.
 - The owner records proposals, milestones and reviews on GitHub. There are no
   `design/` or `reviews/` folders in this project.
@@ -49,21 +48,21 @@ A milestone is an annotated tag `vX.Y.Z` on `master`, a point in time. It is
 not a branch or pull request. Pull requests do not wait for review; the tag
 does.
 
-1. The owner calls a milestone, or OpenCode proposes one for a coherent set of
-   work, a breaking change or a PyPI release.
-2. OpenCode opens an issue labelled `milestone`, titled `Milestone vX.Y.Z`,
+1. The owner calls a milestone, or the implementer proposes one for a coherent
+   set of work, a breaking change or a PyPI release.
+2. The implementer opens an issue labelled `milestone`, titled `Milestone vX.Y.Z`,
    containing the candidate full SHA on `master`, previous milestone tag, pull
    requests since it, gate results, CI, G5 when an API call changed, and owner
    decisions since the previous tag.
-3. OpenCode gives the owner one prompt from
-   `.claude/skills/review-handoff/SKILL.md` to run in a fresh session of Claude
-   Code or GPT-6 Luna. The reviewer checks out the candidate SHA and reviews
+3. The implementer gives the owner one prompt from
+   `.claude/skills/review-handoff/SKILL.md` to run in a fresh session of the
+   owner-selected reviewer. The reviewer checks out the candidate SHA and reviews
    `git diff <previous tag>..<candidate>` plus every touched dependency.
 4. A BLOCK is fixed in ordinary pull requests. The candidate moves to the new
-   `master` SHA and OpenCode gives an unasked re-review prompt. The round
+   `master` SHA and the implementer gives an unasked re-review prompt. The round
    ceiling in `PRINCIPLES.md` applies; a third round without AGREE goes to the
    owner.
-5. On AGREE, OpenCode creates the annotated tag on exactly the reviewed SHA,
+5. On AGREE, the implementer creates the annotated tag on exactly the reviewed SHA,
    pushes it, and posts the completion note on the milestone issue. Work merged
    after that candidate belongs to the next milestone. G5 happens before the
    tag whenever an API call changed. PyPI uploads always remain the owner's.
@@ -81,7 +80,7 @@ posting format and signature.
 
 ## Merging
 
-Merge is `auto`. OpenCode merges a pull request itself with
+Merge is `auto`. The implementer merges a pull request itself with
 `gh pr merge --merge --delete-branch` only when all conditions hold:
 
 1. Every gate the diff can affect is green on the pull request head, its output
@@ -159,8 +158,9 @@ The PR body records the gates, deliberate-break verification, and merge checks.
     method's signature or return shape bumps the major version and says so.
   - Anything that writes to the account in bulk (unlike, delete from a
     playlist, change privacy) gets a dry-run mode that lists what it would do.
-  - Every GitHub record authored by this implementer uses the signature
-    `— Implementer (OpenCode, DeepSeek V4.1 Flash)`.
+  - Every GitHub record authored by an implementer identifies its actual tool
+    and model with the signature
+    `— Implementer (<actual tool>, <actual model>)`.
 - **decided, and not to be re-opened:**
   - *Watch history cannot be read or modified through the API.* Google removed
     history from the Data API in 2016; `relatedPlaylists` no longer carries
@@ -199,6 +199,12 @@ The PR body records the gates, deliberate-break verification, and merge checks.
      OpenCode)." This amends the former Claude-Code-only decision. Milestones
      are tags, review is per milestone rather than per PR, and the owner runs
      the review-handoff prompt in a fresh session.
+     On 2026-10-30 the owner removed the fixed implementer assignment: any
+     coding agent may implement the owner's requests, without a tool/model
+     permission check. Records identify the actual author. Independent milestone
+     review by a different model family remains required; reviewer selection
+     is not restricted to the former named tools/models. This supersedes the
+     implementation and reviewer assignments quoted above.
   3. **Records live on GitHub.** The proposal issue is the design record; the
      milestone issue, its verdict comment and `review` issues are the review
      record; there are no `design/` or `reviews/` directories. The completion

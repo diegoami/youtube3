@@ -1,7 +1,7 @@
 # Principles
 
-> Shared by both working modes of the harness. This repository runs the OpenCode
-> implementer mode and the Claude Code reviewer mode. The
+> Shared by implementation and independent milestone review. Any coding agent
+> may implement; the owner selects a reviewer from a different model family. The
 > project slot records the owner's amendments to this file in [`AGENTS.md`](AGENTS.md).
 > The
 > ownership map below is authoritative: a non-owning file links to an idea and
@@ -15,8 +15,8 @@
 | the non-trivial test, the conservative floor, the pure-typo exception | `PRINCIPLES.md` |
 | the six gates disciplines | `PRINCIPLES.md` |
 | the verdict protocol: revision scope and target proof, rounds, materiality, reviewer sessions, fallback, waiver, owner decisions, defect path, completion note, merge policy, `design: none` scoping, bootstrap, comment-not-approval | `PRINCIPLES.md` |
-| the OpenCode process: roles, assignment table, reviewer acquisition, the two stages, BLOCK scope, withdraw/re-scope | `AGENTS.md` |
-| the Claude Code process: fresh-context review, same-family default, no design stage, the external-process option | `CLAUDE.md` |
+| the implementation process, roles, reviewer selection and project-specific amendments | `AGENTS.md` |
+| Claude Code role guidance | `CLAUDE.md` |
 | the project rules: product, paths, never-echo, the gates table, conventions, one source of truth, decided-not-to-reopen, open work | `AGENTS.md`, the project slot |
 | the iteration overlay and the fork-provenance table | `PLAN.md` |
 | feature requests and artistic license | `ROADMAP.md` |
@@ -31,7 +31,7 @@ live on GitHub (`AGENTS.md`, owner decisions 2 and 3).
 **The table is authoritative.** A contradiction found between files is recorded
 as a defect and fixed in the change that found it. If the table does not settle
  a sentence that spans two owners, the fallback order is: this file for
- principles and the protocol, `AGENTS.md` for the OpenCode process and project
+ principles and the protocol, `AGENTS.md` for the implementation process and project
  rules.
 
 ## What counts as non-trivial
