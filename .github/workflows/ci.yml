@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: python -m pip install -e ".[dev,download]"
+        run: python -m pip install -e ".[dev,download,artwork]"
       - name: G1 compile
         run: python -m compileall -q youtube3 tests
       - name: G2 lint
@@ -51,3 +51,7 @@ jobs:
           wheel-venv/bin/youtube3 download video BaW_jenozKc --dry-run
           # The page's assets must ship in the wheel.
           wheel-venv/bin/python -c "from youtube3 import page; html = page.page_html({'exported_at': None, 'videos': []}); assert 'function selectVideos' in html and '--accent' in html; print('page assets ok')"
+          # Base import/help works without the optional artwork dependencies.
+          wheel-venv/bin/youtube3 artwork render --help
+          wheel-venv/bin/python -c "import glob, subprocess, sys; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', glob.glob('dist/*.whl')[0] + '[artwork]'])"
+          wheel-venv/bin/python -c "from PIL import Image; from youtube3.artwork import render_thumbnail; Image.new('RGB', (1280, 720)).save('background.png'); render_thumbnail('background.png', 'rendered.png', episode=1000); assert Image.open('rendered.png').size == (1280, 720)"

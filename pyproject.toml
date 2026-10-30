@@ -28,7 +28,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "build", "twine"]
+dev = ["pytest", "ruff", "build", "twine", "Pillow>=10.1", "PyYAML>=6"]
+artwork = ["Pillow>=10.1", "PyYAML>=6"]
 download = ["yt-dlp[default]>=2025.11.12"]
 
 [project.urls]
