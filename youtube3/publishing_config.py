@@ -156,3 +156,52 @@ def check_destination(client, settings):
     expected = settings.get("expected_channel_id")
     if expected is not None and client.signed_in_channel()["id"] != expected:
         raise ConfigurationError("Selected channel differs from the preset's expected channel ID")
+
+
+VIDEO_SCHEMA = "youtube3.publishing-video.v1"
+VIDEO_FIELDS = {"schema", "file", "video_id", "presets", "preset", "settings", "episode"}
+
+
+def resolve_video_config(path=None, *, presets=None, preset=None, overrides=None,
+                         file=None, video_id=None, episode=None):
+    """Resolve preset defaults → named preset → per-video settings → CLI overrides.
+
+    Explicit false/empty/null values survive. Input/preset/artwork paths keep
+    the directory of the file that defined them. No login or account calls.
+    """
+    document, root = {}, Path.cwd()
+    if path is not None:
+        document = read_document(path)
+        root = Path(path).expanduser().resolve().parent
+        if set(document) - VIDEO_FIELDS or document.get("schema") != VIDEO_SCHEMA:
+            raise ConfigurationError("Unsupported per-video publishing schema/fields")
+        for field in ("file", "video_id", "presets", "preset"):
+            if document.get(field) is not None and not isinstance(document[field], str):
+                raise ConfigurationError(f"{field} must be a string or null")
+        if document.get("file") is not None and document.get("video_id") is not None:
+            raise ConfigurationError("Per-video configuration must choose file or video_id")
+    source_file = str(Path(file).expanduser().resolve()) if file is not None else None
+    source_id = video_id
+    if file is None and video_id is None:
+        source_file = str((root / document["file"]).expanduser().resolve()) if document.get("file") is not None else None
+        source_id = document.get("video_id")
+    if (source_file is None) == (source_id is None):
+        raise ConfigurationError("Choose a video file or existing video ID")
+    if source_id is not None and (not isinstance(source_id, str) or not source_id):
+        raise ConfigurationError("Existing video ID must be non-empty")
+    preset_path = Path(presets).expanduser().resolve() if presets is not None else None
+    if preset_path is None and document.get("presets"):
+        preset_path = (root / document["presets"]).expanduser().resolve()
+    preset_name = preset if preset is not None else document.get("preset")
+    if bool(preset_path) != bool(preset_name):
+        raise ConfigurationError("presets and preset must be selected together")
+    episode = episode if episode is not None else document.get("episode")
+    if episode is not None and (isinstance(episode, bool) or not isinstance(episode, int) or episode < 0):
+        raise ConfigurationError("episode must be a non-negative integer")
+    context = {"stem": Path(source_file).stem, "filename": Path(source_file).name} if source_file else {}
+    if episode is not None:
+        context["episode"] = episode
+    layers = preset_layers(preset_path, preset_name) if preset_path else []
+    settings = resolve_settings(*layers, settings_layer(document.get("settings", {}), root),
+                                overrides or {}, context=context)
+    return {"file": source_file, "video_id": source_id, "settings": settings}

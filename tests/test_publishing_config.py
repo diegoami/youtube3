@@ -81,3 +81,59 @@ def test_preset_cli_preview_uses_profile_and_never_writes(presets, tmp_path, mon
     publish_job.main()
     output = capsys.readouterr().out
     assert "Dry run" in output and "007" in output
+
+
+def test_per_video_precedence_false_empty_clear_and_origins(presets, tmp_path):
+    folder = tmp_path / "videos"
+    folder.mkdir()
+    path = folder / "video.json"
+    path.write_text(json.dumps({"schema": config.VIDEO_SCHEMA, "file": "episode.mp4", "presets": "../presets.json",
+        "preset": "series", "episode": 9, "settings": {"title": "Video title", "tags": [], "thumbnail": "local.png", "made_for_kids": False}}), encoding="utf-8")
+    result = config.resolve_video_config(path, overrides={"title": "CLI title", "privacy": None})
+    assert result["file"] == str(folder / "episode.mp4")
+    settings = result["settings"]
+    assert settings["title"] == "CLI title" and settings["tags"] == []
+    assert settings["made_for_kids"] is False and settings["privacy"] is None
+    assert settings["thumbnail"] == str(folder / "local.png")
+    assert settings["description"] == "Literal {braces}"
+
+
+def test_per_video_yaml_multiline_and_null(tmp_path):
+    path = tmp_path / "video.yaml"
+    path.write_text('schema: youtube3.publishing-video.v1\nfile: episode.mp4\nsettings:\n  title: Episode\n  description: |\n    Line one\n    Line two\n  tags: []\n  made_for_kids: false\n  privacy: null\n', encoding="utf-8")
+    result = config.resolve_video_config(path)
+    assert result["settings"]["description"] == "Line one\nLine two\n"
+    assert result["settings"]["made_for_kids"] is False
+    assert result["settings"]["privacy"] is None
+
+
+def test_configuration_cannot_enable_apply_and_fails_before_login(tmp_path, monkeypatch):
+    path = tmp_path / "video.json"
+    path.write_text(json.dumps({"schema": config.VIDEO_SCHEMA, "file": "episode.mp4", "apply": True}), encoding="utf-8")
+    monkeypatch.setattr(publish_job, "client", lambda _: pytest.fail("invalid config logged in"))
+    monkeypatch.setattr(sys, "argv", ["publishing", "--config", str(path)])
+    with pytest.raises(SystemExit) as result:
+        publish_job.main()
+    assert result.value.code == 1
+
+
+def test_config_cli_preview_and_unset(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "video.json"
+    (tmp_path / "episode.mp4").write_bytes(b"synthetic")
+    path.write_text(json.dumps({"schema": config.VIDEO_SCHEMA, "file": "episode.mp4", "settings": {
+        "title": "Episode", "tags": ["default"], "privacy": "public"}}), encoding="utf-8")
+
+    class Client:
+        profile = None
+        def signed_in_channel(self):
+            return {"id": "UCmine"}
+
+    monkeypatch.setattr(publish_job, "client", lambda _: Client())
+    monkeypatch.setattr(sys, "argv", ["publishing", "--config", str(path), "--unset", "privacy", "--tags", ""])
+    publish_job.main()
+    output = capsys.readouterr().out
+    assert "Dry run" in output and '"privacyStatus": "private"' in output
+    job = json.loads(output.split("\nDry run:")[0])
+    assert job["publication"]["privacy"] is None
+    assert job["metadata"]["tags"] == [] and "tags" not in job["upload"]["body"]["snippet"]
+    assert not (tmp_path / "job.json").exists()

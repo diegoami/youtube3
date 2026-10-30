@@ -780,3 +780,24 @@ template. Unknown fields and duplicate keys fail clearly. Supported settings are
 profile/expected channel, title/description/tags/thumbnail, privacy/publication
 time, category, audience and retries. Resume uses the checkpoint's fixed settings.
 Python: `youtube3.publishing_config.resolve_preset(path, name, overrides=..., context=...)`.
+
+Per-video configuration extends precedence to **defaults → preset → video
+settings → explicit CLI overrides**. Lists replace earlier lists; `false`, `[]`,
+`""` and `null` are explicit values, never silently replaced by defaults.
+`--unset FIELD` clears an inherited optional setting, e.g. `--unset privacy`
+leaves a new upload private without a final visibility change. Applying still
+requires an explicit CLI `--apply` and a new job path; configs cannot enable it.
+
+```sh
+youtube3 publishing --config examples/publishing/video.yaml
+youtube3 publishing --config video.yaml --title "An explicit title" --unset thumbnail
+youtube3 publishing --config video.yaml --job job.json --apply
+```
+
+See `examples/publishing/presets.json` and `video.yaml` for synthetic editable
+examples. `file`, `presets` and artwork paths resolve relative to the file that
+defines them; CLI paths use the current folder. A per-video file uses schema
+`youtube3.publishing-video.v1` and accepts `file` or `video_id`, `presets`/`preset`,
+`episode` and `settings`. Settings have the same validated fields as presets.
+Python: `resolve_video_config(path, overrides=..., file=..., episode=...)`
+returns the effective source and settings without login or account calls.

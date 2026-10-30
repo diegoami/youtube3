@@ -1,0 +1,12 @@
+{
+  "schema": "youtube3.publishing-presets.v1",
+  "defaults": {"privacy": "private", "tags": ["my-series"]},
+  "presets": {
+    "series": {
+      "profile": "mybrand",
+      "expected_channel_id": "UC_REPLACE_ME",
+      "variables": {"series": "My series"},
+      "title_template": "{series} — Episode {episode:03d}"
+    }
+  }
+}
