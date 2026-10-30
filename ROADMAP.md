@@ -1,8 +1,8 @@
 # Roadmap — requests
 
-> How the project grows. The owner writes requests; Claude shapes them; an
+> How the project grows. The owner writes requests; the implementer shapes them; an
 > accepted request is one proposal, one branch and one pull request
-> ([`CLAUDE.md`](CLAUDE.md)).
+> ([`AGENTS.md`](AGENTS.md)).
 
 ## The queue
 
@@ -34,12 +34,12 @@
 
 `requested` → `accepted` → `in progress` → `in review` → `landed`; plus
 `parked` and `refused`. **The owner accepts, parks or refuses**, and the
-reason is recorded; Claude sets the middle states.
+reason is recorded; the implementer sets the middle states.
 
 ## How to request
 
 Add one row to the table, in your own words — or say it in a session ("add to
-the roadmap: …") and Claude appends the row and stops. **A request is not a
+the roadmap: …") and the implementer appends the row and stops. **A request is not a
 request to implement**: the shaping still happens, and the original wording
 is quoted verbatim in the block and never silently reworded.
 
@@ -58,9 +58,9 @@ is quoted verbatim in the block and never silently reworded.
 
 The block is posted as a GitHub issue labelled `proposal`, and the
 implementing PR says `Closes #n`. The independent review comes later, at the
-milestone tag that includes the request (`CLAUDE.md`).
+milestone tag that includes the request (`AGENTS.md`).
 
-## Claude's job
+## The implementer's job
 
 - **Shape** a request when it is picked up: value, scope, done-when,
   out-of-scope, dependencies, open questions, recorded as the block above.
@@ -73,9 +73,9 @@ milestone tag that includes the request (`CLAUDE.md`).
 
 ## Latitude inside a request
 
-Claude may choose names, the command-line shape, the page's look and the
+The implementer may choose names, the command-line shape, the page's look and the
 prose, and records what it chose so the choice is visible and reversible. It
 does not change **the intent of the request**, **scope**, **the done-when and
 the gates** (extendable with the reason recorded, never weakened), **owner
-decisions**, or the public API of `YoutubeClient` (`CLAUDE.md`,
+decisions**, or the public API of `YoutubeClient` (`AGENTS.md`,
 conventions).
