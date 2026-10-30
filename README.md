@@ -494,6 +494,35 @@ metadata; `plan_playlist_artwork(snapshot, background, output_dir, ...)` fixes
 the mapping; `save_manifest`/`load_manifest` persist it;
 `render_playlist_artwork(manifest, overwrite=False)` renders offline.
 
+### Apply video artwork
+
+```sh
+youtube3 artwork apply artwork/artwork.json --profile mybrand
+youtube3 artwork apply artwork/artwork.json --profile mybrand --report results.json --apply
+youtube3 artwork apply artwork/artwork.json --profile mybrand --retry results.json --apply
+```
+
+The preview reads channel/video metadata but writes nothing. Applying requires
+an explicit new report path or an existing retry report. Every image is decoded
+and fingerprinted, every video must belong to the selected channel, and custom
+thumbnail eligibility must be enabled. Duplicate video IDs are rejected: choose
+one explicit image per video before applying. The manifest's cover is never
+sent to a video. Original video metadata/privacy/schedules remain untouched.
+The batch stops on the first failure and records successful, failed and pending
+entries; retrying a matching report skips successful ones. Changed images or
+mappings require an inspected new plan. A checkpoint error returns the partial
+report to the caller; inspect it before retrying.
+
+This operation needs the artwork extra to validate image contents. Existing
+video-thumbnail validation retains youtube3's conservative 2 MiB size policy
+and 640-pixel minimum width. Google's current
+[thumbnails.set reference](https://developers.google.com/youtube/data/reference/rest/v3/thumbnails/set)
+lists 50 MB and approximately 50 quota units per call (checked 2026-10-30);
+the library policy deliberately remains smaller for compatibility.
+Python: `youtube3.thumbnail_batch.plan_thumbnail_batch(client, manifest)` and
+`apply_thumbnail_batch(client, manifest, previous=None, report_path=None)`;
+`ThumbnailBatchError.report` retains partial results on failure.
+
 ## PUBLISHING
 
 Upload the video in YouTube Studio, then set its metadata, thumbnail and
