@@ -26,6 +26,7 @@ COMMANDS = {
         "move": "move_videos_playlist",
         "remove": "remove_videos_playlist",
         "publish": "publish_videos_playlist",
+        "cover": "playlist_cover",
     },
     "video": {"info": "retrieve_video_info", "check": "verify_video"},
     "channel": {"videos": "channel_videos"},

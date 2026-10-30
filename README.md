@@ -523,6 +523,35 @@ Python: `youtube3.thumbnail_batch.plan_thumbnail_batch(client, manifest)` and
 `apply_thumbnail_batch(client, manifest, previous=None, report_path=None)`;
 `ThumbnailBatchError.report` retains partial results on failure.
 
+### Playlist cover API
+
+```sh
+youtube3 playlist cover PLAYLIST_ID --image square.png --profile mybrand
+youtube3 playlist cover PLAYLIST_ID --manifest artwork/artwork.json --profile mybrand --apply
+```
+
+The manifest path selects its separate `cover`, never a video's thumbnail.
+Preview checks ownership and lists existing image resources; `--apply` inserts
+a missing hero image or updates the existing hero's resource ID. It never
+reorders or deletes playlist items. An image/cover change after planning
+requires a new preview; permission/eligibility errors are reported clearly.
+Images must fully decode as square PNG/JPEG, at most 50 MiB; validation needs
+the artwork extra. Google documents 1 unit for listing and 50 for insert/update.
+See [insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/insert),
+[update](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/update)
+and [list](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/list).
+Checked 2026-10-30 against public discovery revision 20261029: its list filter
+is `parent` (the prose reference calls it `playlistId`), and the cover type is
+`hero`. The client follows its bundled discovery, including media uploads for
+both insert/update. `google-api-python-client>=2.201.0` is required for this
+verified contract; unsupported custom/older discovery fails with an upgrade
+message rather than issuing a guessed request. Account/project eligibility
+still requires an owner-approved live check before milestone tagging.
+
+Python: `client.list_playlist_images(playlist_id)` and
+`client.set_playlist_cover(playlist_id, image, apply=False)`. For separate stages,
+use `youtube3.playlist_cover.plan_playlist_cover` / `apply_playlist_cover`.
+
 ## PUBLISHING
 
 Upload the video in YouTube Studio, then set its metadata, thumbnail and
@@ -575,6 +604,8 @@ The methods of `YoutubeClient`:
 -   `get_channel_name`: Retrieve the title of a channel using its ID.
 -   `get_video`: Retrieve information about a video using its ID.
 -   `get_video_content_details`: Retrieve the content details of a video using its ID.
+-   `list_playlist_images`: List a playlist's image resources, following pagination.
+-   `set_playlist_cover`: Preview or explicitly apply a square local playlist-cover image.
 -   `upload_thumbnail`: Set a video's custom thumbnail from a local PNG or JPEG file (max 2 MB; the channel must be verified); `youtube3.publish.check_thumbnail(path)` checks one first.
 -   `get_video_snippet`: Retrieve the snippet information of a video using its ID.
 -   `get_channel_id`: Retrieve the ID of a channel that a video belongs to using the video's ID.
