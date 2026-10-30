@@ -593,9 +593,8 @@ allows status queries/recovery within the existing session.
 
 ## PUBLISHING
 
-Upload the video in YouTube Studio, then set its metadata, thumbnail and
-publishing time in one command. Direct video-file uploads are requested for
-the next release ([#127](https://github.com/diegoami/youtube3/issues/127)):
+Upload the video in Studio or with `youtube3 upload`, then set its metadata,
+thumbnail and publishing time in one command:
 
 ```
 youtube3 publish VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 2026-10-01T18:00
@@ -620,6 +619,43 @@ youtube3 publish VIDEO_ID --title "My title" --thumbnail thumb.jpg --schedule 20
 The same in Python: `youtube3.publish.plan_publish(client, video_id, ...)`
 returns the plan, and `youtube3.publish.apply_publish(client, plan)` sends
 it.
+
+### Recoverable publishing jobs
+
+```sh
+youtube3 publishing --file episode.mp4 --title "Episode 1" --thumbnail artwork.png --privacy public --profile mybrand
+youtube3 publishing --file episode.mp4 --title "Episode 1" --thumbnail artwork.png --privacy public --profile mybrand --job job.json --apply
+youtube3 publishing --resume job.json --profile mybrand --apply
+```
+
+Use `--video-id VIDEO_ID` instead of `--file` for an existing Studio upload.
+A thumbnail may be a supplied file or the output of the local artwork renderer.
+`--schedule ISO_TIME` keeps the video private until its future publication time.
+Preview exposes upload, thumbnail, metadata and publication stages without an
+upload, account write or checkpoint file. Applying a new job requires a new
+`--job` path; resume uses its saved settings and channel/profile.
+
+New media always uploads privately. The returned ID is checkpointed before
+artwork, metadata or final visibility/scheduling. Each stage records pending,
+running, successful, skipped or failed; uncertain uploads require recovery.
+A failure after upload retains the ID. Resume skips completed stages and never
+uploads again when the ID is known, even if the original media was removed.
+Metadata/status updates reuse the existing publishing code and preserve
+unrelated writable fields. A later stage failure stops subsequent stages.
+
+If the process stops during upload or its ID cannot be checkpointed, inspect
+the channel. The job refuses automatic reupload. Once the ID is found, use
+`youtube3 publishing --resume job.json --profile mybrand --recover-video-id VIDEO_ID --apply`.
+The recovered ID must belong to the selected channel. A checkpoint-write error
+also prints/returns the current known ID and job state, which can be used for
+explicit recovery. No credentials, raw API errors or resumable-session URLs
+are stored. Checkpoints contain selected metadata and local paths: keep them
+local. A failed file write before upload prevents any account write.
+
+Python: `youtube3.publishing_job.plan_publishing_job(client, ...)`,
+`apply_publishing_job(client, job, path, resume=False, recover_video_id=None)`
+and `load_job(path)`. `PublishingJobError.job` and `.video_id` expose recovery
+state even if saving failed. Existing `youtube3 publish VIDEO_ID` remains usable.
 
 ## WATCH HISTORY
 

@@ -1,12 +1,11 @@
 ---
 name: review-handoff
-description: Write the prompt the owner runs in a different model (Codex, DeepSeek, OpenCode, or another tool) so it independently reviews a milestone, a vX.Y.Z tag candidate on master, and records the result on GitHub. Use when a milestone is called or proposed (CLAUDE.md, "Milestones and the independent review"), for a re-review after a BLOCK, and whenever the owner asks for a review prompt. Also use when the owner says a review is in, to process it and, on AGREE, to tag.
+description: Write the prompt the owner runs in a different model (Codex, DeepSeek, OpenCode, or another tool) so it independently reviews a milestone, a vX.Y.Z tag candidate on master, and records the result on GitHub. Use when a milestone is called or proposed (AGENTS.md, "Milestones and independent review"), for a re-review after a BLOCK, and whenever the owner asks for a review prompt. Also use when the owner says a review is in, to process it and, on AGREE, to tag.
 ---
 
 # Review handoff
 
-A milestone is a **tag**, a point in time (`CLAUDE.md`, "Milestones and the
-independent review"). Proposals and pull requests are not milestones and get
+A milestone is a **tag**, a point in time (`AGENTS.md`, "Milestones and independent review"). Proposals and pull requests are not milestones and get
 no prompt; at most say in one line that a review is possible, and write the
 prompt only if the owner asks.
 
@@ -53,7 +52,7 @@ prompt always fetches before it checks out.
   tag. Do not argue for the changes.
 - **Claims to verify**: the specific things the work says are true, with
   `file:line`. These are what the reviewer checks hardest.
-- **Checks already run**: each gate from the `CLAUDE.md` gates table, its
+- **Checks already run**: each gate from the `AGENTS.md` gates table, its
   result and pass count, and what it would have caught. The reviewer should
   aim at what those checks cannot see.
 - **Known owner decisions**: the standing ones are in the template; add the
@@ -90,8 +89,9 @@ see.
 
 KNOWN OWNER DECISIONS (not defects):
 - The owner decisions and the "decided, and not to be re-opened" list in
-  CLAUDE.md's project slot: watch history is not in the API, python-youtube
-  was not adopted, uploads stay in YouTube Studio.
+  AGENTS.md's project slot govern: history features are excluded, python-youtube
+  was not adopted, and direct file uploads are authorized alongside Studio
+  workflows. Live account checks still require separate owner approval.
 - Do not run anything against the YouTube API. The live gate (G5) writes to
   the owner's real account and needs the owner's OAuth credentials, which you
   do not have and must not look for.
@@ -102,8 +102,9 @@ PRINCIPLES.md. The project slot in AGENTS.md lists the files you must never
 read or echo (client_secrets*.json, youtube.dat, token.json, Takeout exports,
 .env*) and the gates table. Its principles and rules are the standard.
 
-Run the offline gates yourself, from the gates table (G1 compile, G2 install,
-and the unit tests, lint and CI once they exist), and say what each printed.
+Run the offline gates yourself from the AGENTS.md gates table: G1 compile,
+G2 lint, G3 unit tests, G3b page logic when applicable, and G4 package. Check CI
+on the candidate and say what each check printed.
 
 Review git diff <previous tag>..<sha>, and follow it into any file it touches
 or relies on. Look hardest at correctness and edge cases in
