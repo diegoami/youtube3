@@ -118,7 +118,11 @@ def render_thumbnail(background, output, **options):
         draw = ImageDraw.Draw(image)
         x, y = plan["position"]
         box = draw.multiline_textbbox((0, 0), plan["text"], font=font)
-        if x + box[2] - box[0] > image.width or y + box[3] - box[1] > image.height:
+        right = x + box[2] if plan["legacy"] else x + box[2] - box[0]
+        bottom = y + box[3] if plan["legacy"] else y + box[3] - box[1]
+        left = x + box[0] if plan["legacy"] else x
+        top = y + box[1] if plan["legacy"] else y
+        if left < 0 or top < 0 or right > image.width or bottom > image.height:
             raise ArtworkError("Text does not fit; reduce font size, move text or increase dimensions")
         origin = (x, y) if plan["legacy"] else (x - box[0], y - box[1])
         draw.multiline_text(origin, plan["text"], fill=color, font=font)

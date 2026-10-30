@@ -151,3 +151,20 @@ def test_missing_and_corrupt_backgrounds(tmp_path):
     with pytest.raises(artwork.ArtworkError):
         artwork.render_thumbnail(source, output)
     assert not output.exists()
+
+
+def test_legacy_source_coordinates_reject_bottom_clipping(background, tmp_path):
+    from PIL import ImageFont
+    font = ImageFont.load_default(size=64)
+    bounds = font.getbbox("99")
+    # Legacy Pillow coordinates include the font's vertical offset, whereas
+    # modern coordinates intentionally position the visible text bounding box.
+    y = 150 - (bounds[3] - bounds[1])
+    assert bounds[1] > 0
+    output = tmp_path / "clipped.png"
+    with pytest.raises(artwork.ArtworkError, match="does not fit"):
+        artwork.render_thumbnail(background, output, text="99", font_size=64,
+                                 position=(0, y), size=(300, 150), legacy=True)
+    assert not output.exists()
+    artwork.render_thumbnail(background, output, text="99", font_size=64,
+                             position=(0, y), size=(300, 150))
