@@ -1,6 +1,6 @@
 ## UPLOAD
 
-A release is the owner's (`CLAUDE.md`, Merging). From a clean checkout of the
+A PyPI upload is the owner's (`AGENTS.md`, Merging). From a clean checkout of the
 tagged commit:
 
 ```
