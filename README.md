@@ -860,3 +860,68 @@ uncertain earlier writes. Contracts checked 2026-10-30 against official
 [playlistItems.list](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list)
 and [insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/insert).
 No playlist reordering is performed.
+
+## PUBLISHING QUEUES
+
+```sh
+# Preview execution without creating state or logging in:
+youtube3 publishing-batch run plan.json --queue queue.json
+# Execute the saved mapping, with a durable queue and upload ledger:
+youtube3 publishing-batch run plan.json --queue queue.json --apply
+youtube3 publishing-batch status queue.json
+youtube3 publishing-batch pause queue.json
+youtube3 publishing-batch resume queue.json --apply
+# Retry only a selected failed entry/stage:
+youtube3 publishing-batch retry queue.json --entry episode-7 --stage thumbnail --apply
+```
+
+The queue reuses per-video publishing jobs. OS-backed queue and channel-ledger
+locks prevent concurrent runners and release automatically on process exit.
+Pause is a separate request file: the runner checks it before each stage/write,
+so an active upload chunk/session finishes before stopping. `resume` clears the
+pause request; completed entries/stages stay complete. `--limit N` runs at most
+N selected entries; `--continue-on-error` permits later independent entries to
+run after a failure. `retry --entry ID` resumes that failed job and its remaining
+stages; optional `--stage` verifies the recorded failure matches the request.
+Playlist membership completes before final public visibility/scheduling.
+Uncertain playlist insertions are checked read-only on retry, never blindly
+inserted again.
+
+New upload files are SHA-256 fingerprinted, which can take time for large media.
+A default per-channel ledger lives in the config folder's `publishing/` directory,
+separate from OAuth profiles; `--ledger FILE` explicitly chooses another ledger
+when creating a queue. Share that file across batches to share duplicate history.
+Duplicate contents within a batch are rejected before upload. A renamed file
+already recorded as uploaded is reported as `duplicate` with its ID and is not
+uploaded or used to silently change the old video's metadata. Reusing an ID for
+new metadata is an explicit recovery choice. Pending/unknown upload reservations
+block automatic uploads, including when a job checkpoint is missing. Changed
+media requires a new plan. Known-ID resumes do not need the original video file.
+
+After inspecting an uncertain outcome, choose one explicit recovery action:
+
+```sh
+youtube3 publishing-batch recover queue.json --entry episode-7 --video-id RECOVERED_ID --apply
+# Only after confirming no video was created:
+youtube3 publishing-batch recover queue.json --entry episode-7 --confirm-not-uploaded --apply
+# Only after confirming an uncertain membership is absent:
+youtube3 publishing-batch recover queue.json --entry episode-7 --missing-playlist PLAYLIST_ID --apply
+youtube3 publishing-batch resume queue.json --apply
+```
+
+Recovered IDs must belong to the selected channel. A known uploaded ID cannot
+be replaced or reset to pending. Failures after upload retain the ID in the job
+checkpoint/ledger; persistence errors expose known IDs in the returned queue.
+Reports contain selected metadata, local paths, hashes, IDs and stage states;
+no OAuth credentials, raw API errors or resumable-session URLs are stored.
+New queues and saved plans preserve existing files. Keep their checkpoint files,
+`*.jobs` directory and shared ledger together for recovery; locks do not require
+manual stale-lock deletion. No account action occurs without CLI `--apply`.
+
+Python: `publishing_queue.initialize_queue(plan, path, ledger_path=...)`,
+`run_queue(client, path, resume=False, retry=False, select=None, stage=None, limit=None)`,
+`request_pause(path)`, `status(path)` and `recover_entry(...)`.
+`QueueError.queue` exposes recovery state. Per-video `apply_publishing_job` also
+accepts optional `before_stage`/`after_stage` callbacks; returning false from the
+former checkpoints a pause before that stage, and the latter runs after its
+successful checkpoint. Callbacks are Python-only, never loaded from config.

@@ -93,7 +93,7 @@ def validate_job(job):
         raise ValueError("Invalid publishing stages")
     if any(value not in STATES for value in job["stages"].values()):
         raise ValueError("Invalid publishing stage state")
-    if job["state"] not in ("planned", "running", "failed", "recovery_required", "completed"):
+    if job["state"] not in ("planned", "running", "failed", "recovery_required", "completed", "paused"):
         raise ValueError("Invalid publishing job state")
     if job["profile"] is not None and not isinstance(job["profile"], str):
         raise ValueError("Invalid job profile")
@@ -150,7 +150,7 @@ def _publish(client, job, *, metadata=False):
     return publish.apply_publish(client, plan)
 
 
-def apply_publishing_job(client, job, path, *, resume=False, recover_video_id=None):
+def apply_publishing_job(client, job, path, *, resume=False, recover_video_id=None, before_stage=None, after_stage=None):
     """Apply/checkpoint each stage. Never reupload a known or uncertain video.
 
     Resume with a known ID never needs the original media again. An upload left
@@ -192,6 +192,10 @@ def apply_publishing_job(client, job, path, *, resume=False, recover_video_id=No
     for stage in STAGES:
         if job["stages"][stage] in ("successful", "skipped"):
             continue
+        if before_stage is not None and before_stage(stage, deepcopy(job)) is False:
+            job["state"] = "paused"
+            _persist(job, path, overwrite=True)
+            return job
         job["stages"][stage], job["state"], job["failed_stage"] = "running", "running", None
         _persist(job, path, overwrite=True)  # Mark in-flight before any account change.
         try:
@@ -224,6 +228,8 @@ def apply_publishing_job(client, job, path, *, resume=False, recover_video_id=No
             raise PublishingJobError(f"Publishing stopped at {stage}; inspect checkpoint before resuming", job) from None
         job["stages"][stage] = "successful"
         _persist(job, path, overwrite=True)  # Record upload ID before doing anything else.
+        if after_stage is not None:
+            after_stage(stage, deepcopy(job))
     job["state"], job["failed_stage"] = "completed", None
     _persist(job, path, overwrite=True)
     return job
