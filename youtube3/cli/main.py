@@ -22,6 +22,7 @@ COMMANDS = {
     },
     "publish": "publish_video",
     "upload": "upload_video",
+    "publishing": "publish_job",
     "playlist": {
         "show": "show_files_in_playlist",
         "move": "move_videos_playlist",
