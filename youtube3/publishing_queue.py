@@ -172,8 +172,10 @@ def _job_path(path, identity):
 def request_pause(path):
     load_queue(path)
     flag = Path(str(Path(path).resolve()) + ".pause")
-    if not flag.exists():
+    try:
         artwork.save_bytes(flag, b"pause\n")
+    except FileExistsError:
+        pass  # A concurrent or previous caller already requested the pause.
 
 
 def status(path):
