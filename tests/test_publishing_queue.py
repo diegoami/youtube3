@@ -242,3 +242,61 @@ def test_explicit_no_upload_confirmation_allows_new_attempt(inputs):
     assert queue.run_queue(next_client, path, resume=True)["state"] == "completed"
     with pytest.raises(queue.QueueError, match="known upload"):
         queue.recover_entry(next_client, path, "one", confirm_not_uploaded=True)
+
+
+def test_concurrent_pause_requests_both_succeed(inputs, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+    from threading import Barrier
+
+    _, plan, path, ledger = inputs
+    queue.initialize_queue(plan, path, ledger_path=ledger)
+    flag = Path(str(path.resolve()) + ".pause")
+    original = queue.artwork.save_bytes
+    ready = Barrier(2)
+
+    def simultaneous_create(destination, data, **kwargs):
+        if Path(destination) == flag:
+            # Both callers reach exclusive creation before either creates it.
+            ready.wait(timeout=10)
+        return original(destination, data, **kwargs)
+
+    monkeypatch.setattr(queue.artwork, "save_bytes", simultaneous_create)
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        requests = [workers.submit(queue.request_pause, path) for _ in range(2)]
+        for request in requests:
+            assert request.result(timeout=15) is None
+    assert flag.read_bytes() == b"pause\n"
+
+
+def test_pause_cli_succeeds_if_another_caller_creates_flag_first(inputs, monkeypatch, capsys):
+    from pathlib import Path
+
+    _, plan, path, ledger = inputs
+    queue.initialize_queue(plan, path, ledger_path=ledger)
+    flag = Path(str(path.resolve()) + ".pause")
+    original = queue.artwork.save_bytes
+
+    def another_caller_wins(destination, data, **kwargs):
+        if Path(destination) == flag:
+            original(flag, b"existing pause request\n")
+        return original(destination, data, **kwargs)
+
+    monkeypatch.setattr(queue.artwork, "save_bytes", another_caller_wins)
+    monkeypatch.setattr(cli, "client", lambda _: pytest.fail("pause must not log in"))
+    monkeypatch.setattr(sys, "argv", ["publishing-batch", "pause", str(path)])
+    cli.main()
+    assert "Pause requested" in capsys.readouterr().out
+    assert flag.read_bytes() == b"existing pause request\n"
+
+
+def test_pause_reports_other_file_errors(inputs, monkeypatch):
+    _, plan, path, ledger = inputs
+    queue.initialize_queue(plan, path, ledger_path=ledger)
+
+    def refused(*args, **kwargs):
+        raise PermissionError("synthetic permission failure")
+
+    monkeypatch.setattr(queue.artwork, "save_bytes", refused)
+    with pytest.raises(PermissionError, match="synthetic permission failure"):
+        queue.request_pause(path)
