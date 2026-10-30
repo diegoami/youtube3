@@ -1,6 +1,6 @@
 ---
 name: review-handoff
-description: Write the prompt the owner runs in a different model (Codex, DeepSeek, OpenCode, or another tool) so it independently reviews a milestone, a vX.Y.Z tag candidate on master, and records the result on GitHub. Use when a milestone is called or proposed (AGENTS.md, "Milestones and independent review"), for a re-review after a BLOCK, and whenever the owner asks for a review prompt. Also use when the owner says a review is in, to process it and, on AGREE, to tag.
+description: Write the prompt the owner runs in a fresh independent reviewer session so it independently reviews a milestone, a vX.Y.Z tag candidate on master, and records the result on GitHub. Use when a milestone is called or proposed (AGENTS.md, "Milestones and independent review"), for a re-review after a BLOCK, and whenever the owner asks for a review prompt. Also use when the owner says a review is in, to process it and, on AGREE, to tag.
 ---
 
 # Review handoff
@@ -9,12 +9,19 @@ A milestone is a **tag**, a point in time (`AGENTS.md`, "Milestones and independ
 no prompt; at most say in one line that a review is possible, and write the
 prompt only if the owner asks.
 
-Any coding agent may implement; a different model family reviews, in whatever
-tool the owner picks. At each milestone, give the owner one prompt in a single
-fenced `text` block with nothing else in it. Tell the owner to run it in a **fresh
-session** of that tool: a reused session carries its earlier conclusions. The
-reviewer starts with no context and posts its results to GitHub itself, so
-the prompt has to carry everything it needs, and it must not assume a tool.
+Any coding agent may implement; the owner chooses an independent reviewer from
+another model family. Never name or recommend a default reviewer tool, model or
+provider in guidance, milestone issues or handoffs. Record actual implementer
+identities and the owner's eventual reviewer selection factually.
+
+Give the owner a one-line handoff pointing to the milestone issue and this skill.
+It tells the chosen reviewer to use a **fresh session**, run offline checks and
+post findings/verdict on GitHub; no live checks or tagging. Keep the full scope,
+candidate SHA, changed-file manifest, claims, evidence and posting instructions
+in the milestone issue. Expand the user-facing prompt only when requested.
+The template below defines the detailed instructions for that issue; it does
+not assign a reviewer. A fresh session avoids carrying implementation context
+or earlier conclusions into the independent review.
 
 Pull requests do not wait for the review; the tag does.
 
