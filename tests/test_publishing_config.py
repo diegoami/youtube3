@@ -137,3 +137,12 @@ def test_config_cli_preview_and_unset(tmp_path, monkeypatch, capsys):
     assert job["publication"]["privacy"] is None
     assert job["metadata"]["tags"] == [] and "tags" not in job["upload"]["body"]["snippet"]
     assert not (tmp_path / "job.json").exists()
+
+
+def test_per_video_home_relative_source_expands_before_config_directory(tmp_path):
+    from pathlib import Path
+    path = tmp_path / "video.json"
+    path.write_text(json.dumps({"schema": config.VIDEO_SCHEMA, "file": "~/synthetic-publishing-video.mp4",
+        "settings": {"title": "Episode"}}), encoding="utf-8")
+    result = config.resolve_video_config(path)
+    assert result["file"] == str(Path("~/synthetic-publishing-video.mp4").expanduser().resolve())
