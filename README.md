@@ -424,6 +424,45 @@ else. It is personal data too:
 In Python: `youtube3.page.build_page(export, path, title="Liked videos")`,
 where `export` is a dict or the path of an export file.
 
+## LOCAL ARTWORK
+
+Install `pip install "youtube3[artwork]"` for Pillow image rendering and PyYAML
+configuration support. The base installation and help work without them.
+No owner artwork or fonts are distributed.
+
+```sh
+youtube3 artwork render --background template.png --out episode99.png --episode 99
+youtube3 artwork render --background template.png --out episode99.png --episode 99 --apply
+youtube3 artwork render --background template.png --out cover.png --preset cover --text "My series" --apply
+```
+
+The default is a preview: it generates no image and makes no account calls.
+`--apply` renders locally. The video preset is 1280×720; cover is 1280×1280.
+`--size WIDTH HEIGHT` overrides dimensions. `--fit cover` center-crops;
+`contain` pads in black; `stretch` distorts to fill the output. Text uses
+`--font FILE`, `--font-size`, `--color` and `--position X Y` in output pixels.
+An omitted font uses Pillow's built-in scalable font. Text must fit entirely;
+invalid inputs/layouts fail with an actionable error. `--text "Episode {episode}"`
+substitutes a minimum two-digit episode number, including 100 and 1000.
+Inputs are preserved. Existing outputs require explicit `--overwrite`.
+
+Python: `youtube3.artwork.plan_thumbnail(background, output, ...)` returns a
+serializable preview; `render_thumbnail(background, output, ...)` or
+`render_plan(plan)` writes an image and returns its path. These are local
+functions and do not require a `YoutubeClient` or login.
+
+Migration from `lynxupercluster_thumbnailgenerator`: pass its existing YAML
+(or equivalent JSON) to `youtube3 artwork render --config config.yaml`, then
+add `--apply` to render. `legacy_plans(config_path)` exposes the same plans in
+Python. All documented fields are supported: `orig_file`, `output_dir`,
+`font.name/size/color.r/g/b`, `coords.x2/x3/y`, `start_range` and `end_range`.
+The range remains exclusive at the start and inclusive at the end (defaults
+0 and 1000). Filenames remain `thumbnail<N>.png`; two-digit numbers are padded.
+Coordinates and font size apply to the source before stretching to 1280×720.
+Numbers of four or more digits use `x3` and must fit, rather than disappearing.
+Relative paths resolve next to the config file. All destinations are checked
+before the first render; a later rendering error can leave earlier outputs.
+
 ## PUBLISHING
 
 Upload the video in YouTube Studio, then set its metadata, thumbnail and
