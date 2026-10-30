@@ -106,7 +106,7 @@ def check_thumbnail(path):
         return report
     report["bytes"] = os.path.getsize(path)
     if report["bytes"] > MAX_THUMBNAIL_BYTES:
-        report["errors"].append(f"{report['bytes']} bytes: YouTube takes at most 2 MB")
+        report["errors"].append(f"{report['bytes']} bytes: youtube3 accepts at most 2 MB for video thumbnails")
     kind, width, height = image_type_and_size(path)
     report.update(type=kind, width=width, height=height)
     if kind is None:
