@@ -552,6 +552,45 @@ Python: `client.list_playlist_images(playlist_id)` and
 `client.set_playlist_cover(playlist_id, image, apply=False)`. For separate stages,
 use `youtube3.playlist_cover.plan_playlist_cover` / `apply_playlist_cover`.
 
+## DIRECT VIDEO UPLOADS
+
+```sh
+youtube3 upload episode.mp4 --title "Episode 1" --profile mybrand
+youtube3 upload episode.mp4 --title "Episode 1" --profile mybrand --apply
+```
+
+Preview validates the file/metadata and reads the selected destination channel;
+it constructs no upload. `--apply` starts one resumable `videos.insert` session.
+Privacy is explicitly `private` unless `--privacy unlisted|public` is given.
+Options include description, category ID (default 22), comma-separated tags,
+made-for-kids declaration, subscriber notifications (off by default), bounded
+`--retries` (0–10) and `--chunk-size` in multiples of 256 KiB (default 8 MiB).
+The file must be non-empty, <=256 GiB, with a supported video-container extension;
+YouTube still validates the media itself. Existing profile/OAuth selection applies;
+download cookies are never used for uploads.
+
+Retries stay inside the known resumable session. A failure while starting a
+session, exhausted retries, interruption or missing final ID is an **unknown
+outcome**: inspect the channel before any new upload. There is no automatic
+replacement upload or durable cross-process upload resume. Session URLs and raw
+API errors are never returned, logged by this workflow or saved in reports.
+Progress callbacks receive `(uploaded_bytes, total_bytes)` only.
+
+Python: `client.upload_video(file, title="Episode", apply=False, ...)` returns
+the preview and, when applied, an upload result containing the video ID.
+`youtube3.upload.plan_video_upload` / `apply_video_upload` expose separate stages;
+`UploadError.outcome` and `.video_id` support recovery.
+
+Contract checked 2026-10-30: [videos.insert](https://developers.google.com/youtube/data/reference/rest/v3/videos/insert)
+accepts resumable media and `youtube.upload`, `youtube` or `youtube.force-ssl`
+authorization (youtube3 already requests `youtube`). The current reference says
+unverified API projects are not restricted to private uploads; account/project
+behavior still needs an owner-approved live check. The current
+[quota reference](https://developers.google.com/youtube/data/determine_quota_cost)
+assigns 1 unit per insert in a separate Video Uploads bucket, default 100 calls/day.
+The [resumable protocol](https://developers.google.com/youtube/data/guides/using_resumable_upload_protocol)
+allows status queries/recovery within the existing session.
+
 ## PUBLISHING
 
 Upload the video in YouTube Studio, then set its metadata, thumbnail and
@@ -604,6 +643,7 @@ The methods of `YoutubeClient`:
 -   `get_channel_name`: Retrieve the title of a channel using its ID.
 -   `get_video`: Retrieve information about a video using its ID.
 -   `get_video_content_details`: Retrieve the content details of a video using its ID.
+-   `upload_video`: Preview or apply a single resumable local video upload, private by default.
 -   `list_playlist_images`: List a playlist's image resources, following pagination.
 -   `set_playlist_cover`: Preview or explicitly apply a square local playlist-cover image.
 -   `upload_thumbnail`: Set a video's custom thumbnail from a local PNG or JPEG file (max 2 MB; the channel must be verified); `youtube3.publish.check_thumbnail(path)` checks one first.
