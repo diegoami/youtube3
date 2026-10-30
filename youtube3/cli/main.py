@@ -21,6 +21,7 @@ COMMANDS = {
         "page": "build_liked_page",
     },
     "publish": "publish_video",
+    "upload": "upload_video",
     "playlist": {
         "show": "show_files_in_playlist",
         "move": "move_videos_playlist",

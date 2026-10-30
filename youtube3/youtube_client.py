@@ -135,6 +135,17 @@ class YoutubeClient:
         """Set a video's custom thumbnail; thumbnailUrl is the path of a local PNG or JPEG."""
         return self.youtube.thumbnails().set(videoId=videoId, media_body=thumbnail_upload(thumbnailUrl)).execute()
 
+    def upload_video(self, file, *, title, description="", category_id="22", tags=None,
+                     privacy="private", made_for_kids=None, notify_subscribers=False,
+                     retries=3, chunk_size=8 * 1024 * 1024, apply=False, progress=None):
+        """Preview a local video upload by default; apply uses one resumable session."""
+        from .upload import plan_video_upload, apply_video_upload
+        plan = plan_video_upload(self, file, title=title, description=description, category_id=category_id,
+                                 tags=tags, privacy=privacy, made_for_kids=made_for_kids,
+                                 notify_subscribers=notify_subscribers, retries=retries, chunk_size=chunk_size)
+        return {"plan": plan, "applied": apply,
+                "result": apply_video_upload(self, plan, progress=progress) if apply else None}
+
     def list_playlist_images(self, playlist_id):
         """List the playlist's image resources using the bundled discovery contract."""
         from .playlist_cover import list_playlist_images
