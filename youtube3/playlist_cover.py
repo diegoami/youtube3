@@ -1,6 +1,7 @@
 """Plan/set a playlist's own hero image using the playlistImages API."""
 
 import json
+from urllib.parse import urlencode
 
 from googleapiclient.errors import HttpError
 
@@ -19,6 +20,7 @@ SAFE_REASONS = frozenset({
     "insufficientPermissions", "authError", "unauthorized", "quotaExceeded",
     "dailyLimitExceeded", "rateLimitExceeded", "userRateLimitExceeded", "backendError",
     "internalError", "uploadLimitExceeded",
+    "unexpectedPart", "unknownPart", "playlistImageNotFound", "imageTypeAlreadyExists",
 })
 SAFE_LOCATIONS = frozenset({
     "part", "snippet", "snippet.playlistId", "snippet.type", "snippet.width",
@@ -110,13 +112,19 @@ def apply_playlist_cover(client, plan):
     if current != plan:
         raise PlaylistCoverError("Image, channel or existing cover changed after planning; preview again")
     resource, _ = _resource(client)
-    body = {"snippet": {"playlistId": plan["playlist_id"], "type": "hero",
-                        "width": plan["image"]["width"], "height": plan["image"]["height"]}}
-    if plan["action"] == "update":
-        body["id"] = plan["image_id"]
+    # Let YouTube derive dimensions from the media. The optional width/height
+    # metadata caused HTTP 400 in G5; the same image with required fields worked.
+    body = {"snippet": {"playlistId": plan["playlist_id"], "type": "hero"}}
     try:
-        return getattr(resource, plan["action"])(part="snippet", body=body,
-            media_body=thumbnail_upload(plan["image"]["path"])).execute()
+        media = thumbnail_upload(plan["image"]["path"])
+        if plan["action"] == "update":
+            # Live G5: snippet/part is rejected; the backend requires query id,
+            # absent from the 2.201.0 discovery. Preserve the listed hero ID.
+            request = resource.update(body={"id": plan["image_id"]}, media_body=media)
+            request.uri += ("&" if "?" in request.uri else "?") + urlencode({"id": plan["image_id"]})
+        else:
+            request = resource.insert(part="snippet", body=body, media_body=media)
+        return request.execute(num_retries=0)
     except HttpError as error:
         raise PlaylistCoverError(
             f"Playlist cover refused (HTTP {error.resp.status}){_refusal_details(error)}; "

@@ -560,21 +560,31 @@ youtube3 playlist cover PLAYLIST_ID --manifest artwork/artwork.json --profile my
 
 The manifest path selects its separate `cover`, never a video's thumbnail.
 Preview checks ownership and lists existing image resources; `--apply` inserts
-a missing hero image or updates the existing hero's resource ID. It never
+a missing hero image or replaces the media at the existing hero's resource ID. It never
 reorders or deletes playlist items. An image/cover change after planning
 requires a new preview. Refusals show the HTTP status and, when recognized,
 Google's reason code and request-field location. Raw error messages and unknown
 values are withheld. An HTTP 400 alone does not establish an eligibility problem;
 inspect the playlist and diagnose the reason before repeating a refused request.
 Images must fully decode as square PNG/JPEG, at most 50 MiB; validation needs
-the artwork extra. Google documents 1 unit for listing and 50 for insert/update.
+the artwork extra. Image dimensions are checked locally but omitted from insert/
+update metadata: an owner-approved live check reproduced HTTP 400 with the optional
+width/height fields, while the same PNG with only required fields succeeded.
+Live replacement additionally requires the existing hero ID as a query parameter,
+with ID-only body metadata and no `part`/`snippet`: sending `snippet` was rejected
+with `unexpectedPart`, and body-only identification returned `playlistImageNotFound`.
+The bundled discovery omits this query parameter, so the client appends the encoded
+ID to the SDK-built update URL. Both insertion and replacement were verified live;
+replacement retained the same resource ID. Writes are never automatically retried.
+Google documents 1 unit for listing and 50 for insert/update.
 See [insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/insert),
 [update](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/update)
 and [list](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/list).
 Checked 2026-10-30 against public discovery revision 20261029: its list filter
 is `parent` (the prose reference calls it `playlistId`), and the cover type is
-`hero`. The client follows its bundled discovery, including media uploads for
-both insert/update. `google-api-python-client>=2.201.0` is required for this
+`hero`. The client uses its bundled discovery for list filtering and media
+uploads, with the explicitly encoded update query ID described above.
+`google-api-python-client>=2.201.0` is required for this
 verified contract; unsupported custom/older discovery fails with an upgrade
 message rather than issuing a guessed request. Account/project eligibility
 still requires an owner-approved live check before milestone tagging.
