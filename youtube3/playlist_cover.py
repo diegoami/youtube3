@@ -1,11 +1,53 @@
 """Plan/set a playlist's own hero image using the playlistImages API."""
 
+import json
+
 from googleapiclient.errors import HttpError
 
 from .publish import thumbnail_upload
 from .thumbnail_batch import checked_image
 
 MAX_COVER_BYTES = 50 * 1024 * 1024
+
+# Error payloads can echo request data. Only fixed diagnostic values may reach
+# CLI output; never include the server message, URI, headers or arbitrary fields.
+SAFE_REASONS = frozenset({
+    "badRequest", "invalidValue", "invalidParameter", "required", "unexpectedParameter",
+    "invalidPlaylistImage", "invalidImage", "invalidImageType", "invalidImageSize",
+    "imageTooLarge", "unsupportedMediaType", "mediaBodyRequired", "invalidPlaylistId",
+    "playlistNotFound", "playlistForbidden", "forbidden", "notFound",
+    "insufficientPermissions", "authError", "unauthorized", "quotaExceeded",
+    "dailyLimitExceeded", "rateLimitExceeded", "userRateLimitExceeded", "backendError",
+    "internalError", "uploadLimitExceeded",
+})
+SAFE_LOCATIONS = frozenset({
+    "part", "snippet", "snippet.playlistId", "snippet.type", "snippet.width",
+    "snippet.height", "id", "playlistId", "type", "width", "height", "media",
+})
+
+
+def _refusal_details(error):
+    """Return recognized reason/field codes, ignoring malformed/untrusted data."""
+    try:
+        payload = json.loads(error.content)
+    except (ValueError, TypeError, UnicodeError):
+        return ""
+    failure = payload.get("error") if isinstance(payload, dict) else None
+    entries = failure.get("errors") if isinstance(failure, dict) else None
+    if not isinstance(entries, list):
+        return ""
+    details = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        reason, location = entry.get("reason"), entry.get("location")
+        if isinstance(reason, str) and reason in SAFE_REASONS:
+            detail = reason
+            if isinstance(location, str) and location in SAFE_LOCATIONS:
+                detail += f" at {location}"
+            if detail not in details:
+                details.append(detail)
+    return "; " + ", ".join(details) if details else ""
 
 
 class PlaylistCoverError(ValueError):
@@ -77,5 +119,7 @@ def apply_playlist_cover(client, plan):
             media_body=thumbnail_upload(plan["image"]["path"])).execute()
     except HttpError as error:
         raise PlaylistCoverError(
-            f"Playlist cover refused (HTTP {error.resp.status}); check ownership, authorization and cover eligibility"
+            f"Playlist cover refused (HTTP {error.resp.status}){_refusal_details(error)}; "
+            "check ownership, authorization and cover eligibility. "
+            "Inspect the playlist before retrying; do not repeat an unchanged refused request"
         ) from None

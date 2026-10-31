@@ -106,3 +106,30 @@ def test_cover_cli_preview(fake, image, monkeypatch, capsys):
     cli.main()
     assert "Dry run" in capsys.readouterr().out
     assert all(r.method == "GET" for r in f.requests)
+
+
+@pytest.mark.parametrize("reason", ["invalidValue", "invalidPlaylistImage", "playlistForbidden", "quotaExceeded"])
+def test_refusal_exposes_only_recognized_reason_and_field(fake, image, reason):
+    failure = (400, {"error": {"message": "PRIVATE_ERROR_SENTINEL",
+        "errors": [{"reason": reason, "location": "snippet.type", "message": "PRIVATE_ERROR_SENTINEL"}]}})
+    f = prepare(fake, *reads(False), *reads(False), failure)
+    with pytest.raises(pc.PlaylistCoverError) as caught:
+        f.client.set_playlist_cover("PLtest", image, apply=True)
+    assert reason in str(caught.value)
+    assert "snippet.type" in str(caught.value)
+    assert "PRIVATE_ERROR_SENTINEL" not in str(caught.value)
+    assert "HTTP 400" in str(caught.value)
+    assert len([r for r in f.requests if r.method != "GET"]) == 1
+
+
+@pytest.mark.parametrize("errors", [
+    [{"reason": "PRIVATE_REASON_SENTINEL", "location": "PRIVATE_LOCATION_SENTINEL"}],
+    [{"reason": ["invalidValue"], "location": {"field": "snippet.type"}}],
+    [None, "bad"], None, "bad",
+])
+def test_unknown_or_malformed_refusal_details_stay_hidden(fake, image, errors):
+    failure = (400, {"error": {"message": "PRIVATE_ERROR_SENTINEL", "errors": errors}})
+    f = prepare(fake, *reads(False), *reads(False), failure)
+    with pytest.raises(pc.PlaylistCoverError, match="HTTP 400") as caught:
+        f.client.set_playlist_cover("PLtest", image, apply=True)
+    assert "PRIVATE_" not in str(caught.value)

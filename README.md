@@ -562,7 +562,10 @@ The manifest path selects its separate `cover`, never a video's thumbnail.
 Preview checks ownership and lists existing image resources; `--apply` inserts
 a missing hero image or updates the existing hero's resource ID. It never
 reorders or deletes playlist items. An image/cover change after planning
-requires a new preview; permission/eligibility errors are reported clearly.
+requires a new preview. Refusals show the HTTP status and, when recognized,
+Google's reason code and request-field location. Raw error messages and unknown
+values are withheld. An HTTP 400 alone does not establish an eligibility problem;
+inspect the playlist and diagnose the reason before repeating a refused request.
 Images must fully decode as square PNG/JPEG, at most 50 MiB; validation needs
 the artwork extra. Google documents 1 unit for listing and 50 for insert/update.
 See [insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistImages/insert),
