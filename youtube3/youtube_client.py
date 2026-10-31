@@ -151,6 +151,28 @@ class YoutubeClient:
         return {"plan": plan, "applied": apply,
                 "result": apply_video_upload(self, plan, progress=progress) if apply else None}
 
+    def create_playlist(self, title, *, description="", privacy="private", apply=False):
+        """Preview an empty playlist; apply explicitly creates it and returns its resource.
+
+        An insert is never automatically retried. After an uncertain error, inspect
+        the channel before attempting another creation to avoid duplicates.
+        """
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError("Playlist title must be a non-empty string")
+        if not isinstance(description, str):
+            raise ValueError("Playlist description must be a string")
+        if privacy not in ("private", "unlisted", "public"):
+            raise ValueError("Playlist privacy must be private, unlisted or public")
+        plan = {"channel": self.signed_in_channel(),
+                "body": {"snippet": {"title": title, "description": description},
+                         "status": {"privacyStatus": privacy}}}
+        response = None
+        if apply:
+            response = self.youtube.playlists().insert(
+                part="snippet,status", body=plan["body"]
+            ).execute(num_retries=0)
+        return {"plan": plan, "applied": apply, "response": response}
+
     def list_playlist_images(self, playlist_id):
         """List the playlist's image resources using the bundled discovery contract."""
         from .playlist_cover import list_playlist_images

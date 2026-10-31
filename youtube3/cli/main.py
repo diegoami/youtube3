@@ -25,6 +25,7 @@ COMMANDS = {
     "publishing": "publish_job",
     "publishing-batch": "publishing_batch",
     "playlist": {
+        "create": "playlist_create",
         "show": "show_files_in_playlist",
         "move": "move_videos_playlist",
         "remove": "remove_videos_playlist",

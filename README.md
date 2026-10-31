@@ -463,6 +463,34 @@ Numbers of four or more digits use `x3` and must fit, rather than disappearing.
 Relative paths resolve next to the config file. All destinations are checked
 before the first render; a later rendering error can leave earlier outputs.
 
+### Create a playlist
+
+```sh
+youtube3 playlist create "My series" --profile mybrand
+youtube3 playlist create "My series" --description "Series episodes" --profile mybrand --apply
+```
+
+Preview shows the verified destination channel and request body without creating
+a playlist. `--apply` creates one empty **private** playlist and prints its ID and
+URL, ready to use in a publishing batch's `playlists` list. `--privacy unlisted`
+or `--privacy public` explicitly selects another visibility.
+
+Python: `client.create_playlist("My series", description="Series episodes",
+privacy="private", apply=False)` returns `{plan, applied, response}`. `plan`
+contains the destination `channel` and request `body`; `response` is `None` for
+preview, or the created playlist resource (including `id`) when applied.
+Invalid title/description/privacy fails before any API call. Preview may read
+the destination channel but never inserts a playlist. Each applied call creates
+a new playlist; titles are not unique and creation is not idempotent. Inserts
+are never automatically retried. After a request error or missing returned ID,
+inspect the channel before creating again to avoid duplicates.
+
+Contract checked 2026-10-31 against Google's
+[playlists.insert reference](https://developers.google.com/youtube/data/reference/rest/v3/playlists/insert):
+`part=snippet,status`, `snippet.title` required, optional `snippet.description`
+and `status.privacyStatus`, existing `youtube` OAuth scope, 50 quota units per
+insert. Live verification remains a separate owner-approved G5 check.
+
 ### Playlist artwork
 
 ```sh
@@ -681,6 +709,7 @@ The methods of `YoutubeClient`:
 -   `get_video_content_details`: Retrieve the content details of a video using its ID.
 -   `upload_video`: Preview or apply a single resumable local video upload, private by default.
 -   `list_playlist_images`: List a playlist's image resources, following pagination.
+-   `create_playlist`: Preview or explicitly create an empty playlist, private by default, returning its resource and ID.
 -   `set_playlist_cover`: Preview or explicitly apply a square local playlist-cover image.
 -   `upload_thumbnail`: Set a video's custom thumbnail from a local PNG or JPEG file (max 2 MB; the channel must be verified); `youtube3.publish.check_thumbnail(path)` checks one first.
 -   `get_video_snippet`: Retrieve the snippet information of a video using its ID.
