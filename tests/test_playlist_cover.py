@@ -41,8 +41,19 @@ def test_cover_preview_and_media_insert_or_update(fake, image, hero):
     assert request.path == "playlistImages"
     assert request.method == ("PUT" if hero else "POST")
     body = request.raw if isinstance(request.raw, bytes) else request.raw.encode()
-    assert b'"playlistId": "PLtest"' in body
-    assert b'"type": "hero"' in body
+    if hero:
+        assert request.params.get("id") == "hero-id"
+        assert "part" not in request.params
+        assert b'"snippet"' not in body
+    else:
+        assert request.params["part"] == "snippet"
+        assert "id" not in request.params
+        assert b'"playlistId": "PLtest"' in body
+        assert b'"type": "hero"' in body
+    # YouTube derives dimensions from the media. Sending the otherwise optional
+    # fields reproduced HTTP 400 in owner-approved G5; required fields succeeded.
+    assert b'"width"' not in body
+    assert b'"height"' not in body
     assert b'"id": "hero-id"' in body if hero else b'"id": "hero-id"' not in body
     assert b"\x89PNG" in body
     assert all(r.params.get("parent") == "PLtest" for r in f.requests if r.path == "playlistImages" and r.method == "GET")
@@ -53,6 +64,17 @@ def test_preview_no_write(fake, image):
     result = f.client.set_playlist_cover("PLtest", image)
     assert result["applied"] is False and result["response"] is None
     assert all(r.method == "GET" for r in f.requests)
+
+
+def test_update_encodes_exact_existing_id_without_adding_query_parameters(fake, image):
+    hero = existing()
+    hero["id"] = "hero&part=snippet?other=1"
+    responses = ({"items": [{"snippet": {"channelId": "UCmine"}}]}, {"items": [hero]})
+    f = prepare(fake, *responses, *responses, {"id": hero["id"]})
+    f.client.set_playlist_cover("PLtest", image, apply=True)
+    request = [r for r in f.requests if r.method == "PUT"][0]
+    assert request.params.get("id") == hero["id"]
+    assert "part" not in request.params and "other" not in request.params
 
 
 def test_list_paginates_with_discovery_parent(fake):
@@ -108,7 +130,8 @@ def test_cover_cli_preview(fake, image, monkeypatch, capsys):
     assert all(r.method == "GET" for r in f.requests)
 
 
-@pytest.mark.parametrize("reason", ["invalidValue", "invalidPlaylistImage", "playlistForbidden", "quotaExceeded"])
+@pytest.mark.parametrize("reason", ["invalidValue", "invalidPlaylistImage", "playlistForbidden", "quotaExceeded",
+                                    "unexpectedPart", "unknownPart", "playlistImageNotFound", "imageTypeAlreadyExists"])
 def test_refusal_exposes_only_recognized_reason_and_field(fake, image, reason):
     failure = (400, {"error": {"message": "PRIVATE_ERROR_SENTINEL",
         "errors": [{"reason": reason, "location": "snippet.type", "message": "PRIVATE_ERROR_SENTINEL"}]}})
