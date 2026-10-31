@@ -55,6 +55,48 @@ def test_completed_queue_resume_never_reuploads(inputs):
     assert "upload.example" not in ledger.read_text(encoding="utf-8")
 
 
+def test_reused_queue_path_refuses_previous_child_checkpoint(inputs):
+    _, plan, path, ledger = inputs
+    queue.initialize_queue(plan, path, ledger_path=ledger)
+    first, _ = prepared(*uploads("vidOLD"))
+    assert queue.run_queue(first, path)["state"] == "completed"
+    child = queue._job_path(path, "one")
+    previous_child = child.read_bytes()
+    previous_ledger = ledger.read_bytes()
+    path.unlink()
+    planner, http = prepared(resource("vidNEW"), resource("vidNEW"))
+    plan["entries"][0]["job"] = jobs.plan_publishing_job(planner, video_id="vidNEW")
+    request_count = len(http.request_sequence)
+    with pytest.raises(queue.QueueError, match="checkpoint directory"):
+        queue.initialize_queue(plan, path, ledger_path=ledger)
+    assert not path.exists()
+    assert child.read_bytes() == previous_child
+    assert ledger.read_bytes() == previous_ledger
+    assert len(http.request_sequence) == request_count
+
+
+@pytest.mark.parametrize("artifact", ["empty_directory", "file"])
+def test_queue_initialization_refuses_existing_child_storage(inputs, artifact):
+    _, plan, path, ledger = inputs
+    children = queue._job_path(path, "one").parent
+    if artifact == "empty_directory":
+        children.mkdir()
+    else:
+        children.write_bytes(b"preserve")
+    with pytest.raises(queue.QueueError, match="checkpoint directory"):
+        queue.initialize_queue(plan, path, ledger_path=ledger)
+    assert not path.exists() and not ledger.exists()
+    assert children.is_dir() if artifact == "empty_directory" else children.read_bytes() == b"preserve"
+
+
+def test_initialization_cannot_race_an_active_queue_runner(inputs):
+    _, plan, path, ledger = inputs
+    with queue.locked(str(path) + ".lock"):
+        with pytest.raises(queue.QueueError, match="Another"):
+            queue.initialize_queue(plan, path, ledger_path=ledger)
+    assert not path.exists() and not queue._job_path(path, "one").parent.exists()
+
+
 def test_pause_between_stages_and_resume_with_known_id(inputs, monkeypatch):
     media, plan, path, ledger = inputs
     queue.initialize_queue(plan, path, ledger_path=ledger)
