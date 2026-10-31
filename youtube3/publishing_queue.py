@@ -104,7 +104,16 @@ def initialize_queue(plan, path, *, ledger_path=None):
     queue = {"schema": SCHEMA, "id": uuid.uuid4().hex, "plan": deepcopy(plan), "ledger": str(ledger_path),
              "fingerprints": hashes, "state": "pending", "entries": {entry["id"]: {"state": "pending", "video_id": entry["job"]["video_id"],
              "playlists": {value: "pending" for value in entry["playlists"]}, "error": None} for entry in plan["entries"]}}
-    _write(queue, path, overwrite=False)
+    # Reserve fresh child storage atomically while excluding an existing runner.
+    # A reused queue path must never adopt another queue's job checkpoints.
+    with locked(str(path) + ".lock"):
+        if path.exists():
+            raise FileExistsError(f"Queue already exists: {path}")
+        try:
+            Path(str(path) + ".jobs").mkdir()
+        except FileExistsError:
+            raise QueueError("Queue checkpoint directory already exists; resume the original queue or choose a new queue path") from None
+        _write(queue, path, overwrite=False)
     return queue
 
 

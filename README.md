@@ -489,7 +489,8 @@ Contract checked 2026-10-31 against Google's
 [playlists.insert reference](https://developers.google.com/youtube/data/reference/rest/v3/playlists/insert):
 `part=snippet,status`, `snippet.title` required, optional `snippet.description`
 and `status.privacyStatus`, existing `youtube` OAuth scope, 50 quota units per
-insert. Live verification remains a separate owner-approved G5 check.
+insert. The owner reported successful live creation in the 2.9.0 G5 walkthrough
+(milestone #158); other account/project permissions still require their own check.
 
 ### Playlist artwork
 
@@ -957,7 +958,10 @@ checkpoint/ledger; persistence errors expose known IDs in the returned queue.
 Reports contain selected metadata, local paths, hashes, IDs and stage states;
 no OAuth credentials, raw API errors or resumable-session URLs are stored.
 New queues and saved plans preserve existing files. Keep their checkpoint files,
-`*.jobs` directory and shared ledger together for recovery; locks do not require
+`*.jobs` directory and shared ledger together for recovery. Initialization reserves
+a fresh `*.jobs` directory and refuses an existing directory (even empty) or file;
+resume the original queue or choose a new queue path instead of deleting its JSON
+and reusing leftover child checkpoints. Locks do not require
 manual stale-lock deletion. No account write occurs without CLI `--apply`.
 
 Python: `publishing_queue.initialize_queue(plan, path, ledger_path=...)`,
