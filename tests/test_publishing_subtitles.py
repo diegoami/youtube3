@@ -356,3 +356,54 @@ def test_cli_recovery_uses_index_and_id_from_saved_job(setup, monkeypatch, capsy
     assert jobs.load_job(setup.job_path)['state'] == 'completed'
     assert setup.calls == ['publication']
     assert 'completed' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('via_cli', [False, True])
+def test_missing_subtitle_recovery_checkpoint_refuses_without_changes(setup, monkeypatch, capsys, via_cli):
+    import sys
+    from youtube3.cli import publishing_batch as cli
+
+    entries = [{'id': 'one', 'file': None, 'video_id': 'vid',
+                'settings': {'subtitles': [setup.file]}, 'playlists': []}]
+    saved_plan = batch.plan_batch(setup.client, entries)
+    ledger = setup.job_path.with_name('ledger.json')
+    queue.initialize_queue(saved_plan, setup.job_path, ledger_path=ledger)
+    original = setup.resource.insert.side_effect
+
+    def lost_response(**kwargs):
+        request = original(**kwargs)
+        def execute(**kw):
+            request.execute(**kw)
+            raise OSError('lost response')
+        return SimpleNamespace(execute=execute)
+
+    setup.resource.insert.side_effect = lost_response
+    stopped = queue.run_queue(setup.client, setup.job_path)
+    assert stopped['entries']['one']['state'] == 'blocked'
+    child = queue._job_path(setup.job_path, 'one')
+    assert child.exists()
+    child.unlink()
+    before_queue = setup.job_path.read_bytes()
+    before_ledger = ledger.read_bytes() if ledger.exists() else None
+    before_lookups = setup.resource.list.return_value.execute.call_count
+    if via_cli:
+        monkeypatch.setattr(cli, 'client', lambda args: setup.client)
+        monkeypatch.setattr(sys, 'argv', ['publishing-batch', 'recover', str(setup.job_path), '--entry', 'one',
+                                        '--subtitle-index', '1', '--caption-id', 'track-0', '--apply'])
+        with pytest.raises(SystemExit) as error:
+            cli.main()
+        assert error.value.code == 1
+        output = capsys.readouterr()
+        assert 'Subtitle checkpoint is missing' in output.err
+        assert 'Traceback' not in output.err + output.out
+    else:
+        with pytest.raises(queue.QueueError, match='Subtitle checkpoint is missing') as error:
+            queue.recover_entry(setup.client, setup.job_path, 'one', subtitle_index=1, caption_id='track-0')
+        assert error.value.queue == queue.load_queue(setup.job_path)
+    assert setup.job_path.read_bytes() == before_queue
+    assert (ledger.read_bytes() if ledger.exists() else None) == before_ledger
+    assert not child.exists()
+    assert setup.calls == ['subtitle']
+    assert setup.resource.list.return_value.execute.call_count == before_lookups
+    with queue.locked(str(ledger) + '.lock'), queue.locked(str(setup.job_path) + '.lock'):
+        pass
