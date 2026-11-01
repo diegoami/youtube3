@@ -14,7 +14,7 @@ def main():
     source.add_argument("--video-id")
     source.add_argument("--resume", type=Path)
     arguments.add_argument("--config", type=Path, help="per-video JSON/YAML configuration")
-    arguments.add_argument("--unset", action="append", default=[], choices=("title", "description", "tags", "thumbnail", "privacy", "publish_at", "made_for_kids", "expected_channel_id", "profile"), help="clear an inherited optional setting")
+    arguments.add_argument("--unset", action="append", default=[], choices=("title", "description", "tags", "thumbnail", "privacy", "publish_at", "made_for_kids", "expected_channel_id", "profile", "subtitles"), help="clear an inherited optional setting")
     arguments.add_argument("--presets", type=Path, help="explicit channel/series presets JSON or YAML")
     arguments.add_argument("--preset", help="named preset in --presets")
     arguments.add_argument("--episode", type=int, help="episode template variable")
@@ -30,6 +30,10 @@ def main():
     arguments.add_argument("--retries", type=int)
     arguments.add_argument("--chunk-size", type=int)
     arguments.add_argument("--recover-video-id", help="explicit ID found after an uncertain upload; requires --resume --apply")
+    arguments.add_argument("--recover-subtitle", type=int, help="1-based uncertain subtitle index; requires --resume --apply")
+    recovery = arguments.add_mutually_exclusive_group()
+    recovery.add_argument("--recover-caption-id", help="inspected track ID for --recover-subtitle")
+    recovery.add_argument("--confirm-subtitle-missing", action="store_true", help="confirm an uncertain insert is absent before retry")
     arguments.add_argument("--apply", action="store_true")
     args = arguments.parse_args()
     try:
@@ -42,6 +46,10 @@ def main():
             arguments.error("--job is required to apply a new publishing job")
         if args.recover_video_id and not (args.resume and args.apply):
             arguments.error("recovery requires --resume and --apply")
+        if args.recover_subtitle is not None or args.recover_caption_id is not None or args.confirm_subtitle_missing:
+            if not (args.resume and args.apply and args.recover_subtitle is not None
+                    and (args.recover_caption_id is not None or args.confirm_subtitle_missing)):
+                arguments.error("subtitle recovery requires --resume --apply --recover-subtitle INDEX and an ID or missing confirmation")
         settings = {}
         if not args.resume:
             overrides = {key: value for key, value in {"title": args.title, "description": args.description,
@@ -67,7 +75,9 @@ def main():
         print(json.dumps(job, indent=2))
         if args.apply:
             result = publishing_job.apply_publishing_job(youtube, job, args.resume or args.job,
-                        resume=args.resume is not None, recover_video_id=args.recover_video_id)
+                        resume=args.resume is not None, recover_video_id=args.recover_video_id,
+                        recover_subtitle_index=args.recover_subtitle, recover_caption_id=args.recover_caption_id,
+                        confirm_subtitle_missing=args.confirm_subtitle_missing)
             print(json.dumps(result, indent=2))
         else:
             print("Dry run: no upload, account changes or checkpoint writes. Add --apply.")

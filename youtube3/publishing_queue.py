@@ -95,6 +95,7 @@ def initialize_queue(plan, path, *, ledger_path=None):
             inputs.add(Path(job["upload"]["file"]["path"]).resolve())
         if job["thumbnail"]:
             inputs.add(Path(job["thumbnail"]["path"]).resolve())
+        inputs.update(Path(source).resolve() for source in jobs.subtitle_inputs(job))
         hashes[entry["id"]] = digest
     artifacts = [path, ledger_path, Path(str(path) + ".pause"), Path(str(path) + ".lock"), Path(str(ledger_path) + ".lock")]
     artifacts.extend(Path(str(path) + ".jobs") / (entry["id"] + ".json") for entry in plan["entries"])
@@ -334,18 +335,25 @@ def run_queue(client, path, *, resume=False, retry=False, select=None, stage=Non
         return queue
 
 
-def recover_entry(client, path, identity, *, video_id=None, missing_playlist=None, confirm_not_uploaded=False):
+def recover_entry(client, path, identity, *, video_id=None, missing_playlist=None, confirm_not_uploaded=False,
+                  subtitle_index=None, caption_id=None, confirm_subtitle_missing=False):
     """Explicit local recovery, after the operator inspects an uncertain outcome."""
     path = Path(path).resolve()
     queue = load_queue(path)
-    if identity not in queue["entries"] or sum((video_id is not None, missing_playlist is not None, confirm_not_uploaded)) != 1:
+    subtitle_action = subtitle_index is not None or caption_id is not None or confirm_subtitle_missing
+    if identity not in queue["entries"] or sum((video_id is not None, missing_playlist is not None, confirm_not_uploaded, subtitle_action)) != 1:
         raise QueueError("Select an entry and one explicit recovery action")
     if client.signed_in_channel()["id"] != queue["plan"]["channel_id"] or client.profile != queue["plan"]["profile"]:
         raise QueueError("Selected channel/profile differs from the queue")
     with locked(str(queue["ledger"]) + ".lock"), locked(str(path) + ".lock"):
         queue = load_queue(path)
         result = queue["entries"][identity]
-        if confirm_not_uploaded:
+        if subtitle_action:
+            child_path = _job_path(path, identity)
+            job = jobs.recover_subtitle(client, jobs.load_job(child_path), subtitle_index,
+                                        caption_id=caption_id, confirm_missing=confirm_subtitle_missing)
+            jobs._persist(job, child_path, overwrite=True)
+        elif confirm_not_uploaded:
             entry = next(value for value in queue["plan"]["entries"] if value["id"] == identity)
             child_path = _job_path(path, identity)
             job = jobs.load_job(child_path) if child_path.exists() else deepcopy(entry["job"])
