@@ -25,7 +25,7 @@ def prepared(fake, *responses):
 @pytest.fixture
 def subtitle(tmp_path):
     path = tmp_path / 'test.srt'
-    path.write_text(SRT, encoding='utf-8')
+    path.write_bytes(SRT.encode('utf-8'))
     return path
 
 
@@ -67,21 +67,21 @@ def test_exact_caption_media_and_target(fake, subtitle, replace):
     body, media = media_parts(request)
     expected = {'id': 'track', 'snippet': {'isDraft': True}} if replace else {'snippet': {'videoId': 'vid', 'language': 'en', 'name': 'English', 'isDraft': False}}
     assert json.loads(body) == expected
-    assert media.decode() == SRT
+    assert media == subtitle.read_bytes()
     assert 'sync' not in request.params
 
 
-@pytest.mark.parametrize('text,suffix', [(SRT, '.srt'), (VTT, '.vtt'), ('\ufeff' + SRT, '.srt')])
+@pytest.mark.parametrize('text,suffix', [(SRT, '.srt'), (SRT.replace('\n', '\r\n'), '.srt'), (VTT, '.vtt'), ('\ufeff' + SRT, '.srt')])
 def test_timed_utf8_formats(tmp_path, text, suffix):
     path = tmp_path / ('test' + suffix)
-    path.write_text(text, encoding='utf-8')
+    path.write_bytes(text.encode('utf-8'))
     assert captions.check_caption(path)['bytes'] == len(text.encode())
 
 
 @pytest.mark.parametrize('text,suffix', [('plain transcript', '.srt'), ('1\n00:00:02,000 --> 00:00:01,000\nText', '.srt'), ('WEBVTT\n\n00:60.000 --> 00:61.000\nText', '.vtt'), ('WEBVTT\n\n00:00.000 --> 00:01.000\n', '.vtt'), (SRT, '.txt')])
 def test_reject_invalid_timing_and_transcripts(tmp_path, text, suffix):
     path = tmp_path / ('bad' + suffix)
-    path.write_text(text, encoding='utf-8')
+    path.write_bytes(text.encode('utf-8'))
     with pytest.raises(ValueError):
         captions.check_caption(path)
 
