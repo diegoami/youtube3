@@ -295,3 +295,16 @@ def test_an_unreadable_token_file_falls_back_to_the_browser_flow(login, tmp_path
     assert len(FakeFlow.runs) == 1
     assert token.read_text() == credentials.to_json()
     assert "SECRET" not in caplog.text
+
+
+def test_new_consent_requests_caption_scope_without_replacing_saved_login(monkeypatch):
+    scopes_seen = []
+
+    def flow(path, scopes):
+        scopes_seen.extend(scopes)
+        return FakeFlow(path)
+
+    monkeypatch.setattr(auth.InstalledAppFlow, 'from_client_secrets_file', flow)
+    auth.credentials_from_info('synthetic-secrets', None)
+    assert 'https://www.googleapis.com/auth/youtube.force-ssl' in scopes_seen
+    assert 'https://www.googleapis.com/auth/youtube' in scopes_seen

@@ -11,7 +11,8 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/youtube"]
+SCOPES = ["https://www.googleapis.com/auth/youtube",
+          "https://www.googleapis.com/auth/youtube.force-ssl"]
 # Where obtain_credentials found the login.
 SAVED, REFRESHED, BROWSER = "saved", "refreshed", "browser"
 WINDOWS = os.name == "nt"

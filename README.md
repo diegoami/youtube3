@@ -662,6 +662,49 @@ The same in Python: `youtube3.publish.plan_publish(client, video_id, ...)`
 returns the plan, and `youtube3.publish.apply_publish(client, plan)` sends
 it.
 
+### Subtitles on your videos
+
+List caption tracks, preview a timed UTF-8 SRT/VTT upload, then explicitly apply:
+
+```sh
+youtube3 captions list VIDEO_ID --profile mybrand
+youtube3 captions upload VIDEO_ID subtitles.en.srt --language en --name English --profile mybrand
+youtube3 captions upload VIDEO_ID subtitles.en.srt --language en --name English --profile mybrand --apply
+youtube3 captions replace VIDEO_ID CAPTION_ID revised.en.vtt --profile mybrand --apply
+```
+
+Uploads are published caption tracks by default; `--draft` keeps a track in draft.
+Replacement preserves the existing draft state unless `--draft` or `--no-draft`
+is given. It keeps the original language/name and requires the exact caption ID
+from `captions list`; there is no implicit overwrite. Caption writes check video
+ownership, the selected profile/channel, the local file fingerprint and current
+track metadata before sending one request. They never automatically retry. If a
+write fails or returns no ID, inspect `captions list` and Studio before retrying;
+an upload may already have succeeded. A returned ID means accepted, not that
+YouTube has finished processing it; `captions list` reports processing status.
+
+New logins request `youtube.force-ssl` alongside the existing `youtube` scope.
+For an older login rejected for insufficient scope, explicitly reauthorize with
+`youtube3 profiles add mybrand` (or use a fresh explicit token file for an
+unprofiled login). Existing saved logins are not silently replaced.
+
+The API costs 50 units per track listing, 400 for insertion and 450 for
+replacement, plus video ownership lookups. Preview and apply both read tracks;
+the displayed plan quota is the write cost only. Files are limited to 100 MiB
+and checked for basic timed cues; YouTube performs final format validation.
+No automatic synchronization, transcription, translation or deletion is provided.
+Official contracts: [list](https://developers.google.com/youtube/v3/docs/captions/list),
+[insert](https://developers.google.com/youtube/v3/docs/captions/insert),
+[update](https://developers.google.com/youtube/v3/docs/captions/update).
+
+Python: `client.list_captions(video_id)`,
+`client.upload_caption(video_id, file, language="en", name="English", draft=False, apply=False)`
+and `client.replace_caption(video_id, caption_id, file, draft=None, apply=False)`.
+The write methods return `plan`, `applied` and `result` (the accepted track ID).
+`youtube3.captions.plan_caption` / `apply_caption` expose separate plan/apply
+steps; `CaptionError.outcome` distinguishes a refused request (`not_started`)
+from an uncertain result (`unknown`).
+
 ### Recoverable publishing jobs
 
 ```sh
@@ -721,6 +764,9 @@ The methods of `YoutubeClient`:
 -   `get_channel_name`: Retrieve the title of a channel using its ID.
 -   `get_video`: Retrieve information about a video using its ID.
 -   `get_video_content_details`: Retrieve the content details of a video using its ID.
+-   `list_captions`: List caption track identities and processing statuses on an owned video.
+-   `upload_caption`: Preview or upload a timed SRT/VTT subtitle track.
+-   `replace_caption`: Preview or explicitly replace a track by caption ID.
 -   `upload_video`: Preview or apply a single resumable local video upload, private by default.
 -   `list_playlist_images`: List a playlist's image resources, following pagination.
 -   `create_playlist`: Preview or explicitly create an empty playlist, private by default, returning its resource and ID.

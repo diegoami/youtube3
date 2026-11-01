@@ -151,6 +151,23 @@ class YoutubeClient:
         return {"plan": plan, "applied": apply,
                 "result": apply_video_upload(self, plan, progress=progress) if apply else None}
 
+    def list_captions(self, video_id):
+        """List caption identities/statuses on an owned video (50 units plus ownership lookup)."""
+        from .captions import list_captions
+        return list_captions(self, video_id)
+
+    def upload_caption(self, video_id, file, *, language, name="", draft=False, apply=False):
+        """Preview or explicitly upload one timed UTF-8 SRT/VTT track."""
+        from .captions import plan_caption, apply_caption
+        plan = plan_caption(self, video_id, file, language=language, name=name, draft=draft)
+        return {"plan": plan, "applied": apply, "result": apply_caption(self, plan) if apply else None}
+
+    def replace_caption(self, video_id, caption_id, file, *, draft=None, apply=False):
+        """Preview or replace an explicit track; preserve its draft state by default."""
+        from .captions import plan_caption, apply_caption
+        plan = plan_caption(self, video_id, file, caption_id=caption_id, draft=draft)
+        return {"plan": plan, "applied": apply, "result": apply_caption(self, plan) if apply else None}
+
     def create_playlist(self, title, *, description="", privacy="private", apply=False):
         """Preview an empty playlist; apply explicitly creates it and returns its resource.
 
