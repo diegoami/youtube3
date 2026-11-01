@@ -350,7 +350,11 @@ def recover_entry(client, path, identity, *, video_id=None, missing_playlist=Non
         result = queue["entries"][identity]
         if subtitle_action:
             child_path = _job_path(path, identity)
-            job = jobs.recover_subtitle(client, jobs.load_job(child_path), subtitle_index,
+            try:
+                child_job = jobs.load_job(child_path)
+            except FileNotFoundError:
+                raise QueueError("Subtitle checkpoint is missing; restore it before recovery", queue) from None
+            job = jobs.recover_subtitle(client, child_job, subtitle_index,
                                         caption_id=caption_id, confirm_missing=confirm_subtitle_missing)
             jobs._persist(job, child_path, overwrite=True)
         elif confirm_not_uploaded:
