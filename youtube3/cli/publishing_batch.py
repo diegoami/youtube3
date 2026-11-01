@@ -21,9 +21,16 @@ def main():
     arguments.add_argument("--video-id", help="explicit recovered ID, after inspecting an uncertain upload")
     arguments.add_argument("--missing-playlist", help="confirm this uncertain membership is missing before retrying")
     arguments.add_argument("--confirm-not-uploaded", action="store_true", help="explicitly confirm no upload exists before allowing a new attempt")
+    arguments.add_argument("--subtitle-index", type=int, help="1-based uncertain subtitle index for recover")
+    caption_recovery = arguments.add_mutually_exclusive_group()
+    caption_recovery.add_argument("--caption-id", help="inspected accepted track ID for subtitle recovery")
+    caption_recovery.add_argument("--confirm-subtitle-missing", action="store_true")
     arguments.add_argument("--apply", action="store_true")
     args = arguments.parse_args()
     try:
+        if args.subtitle_index is not None or args.caption_id is not None or args.confirm_subtitle_missing:
+            if args.action != "recover" or args.subtitle_index is None or not (args.caption_id is not None or args.confirm_subtitle_missing):
+                arguments.error("subtitle recovery needs recover --subtitle-index INDEX and --caption-id or --confirm-subtitle-missing")
         if args.action == "plan":
             entries = publishing_batch.resolve_batch(args.source, overrides={"profile": args.profile} if args.profile else {})
             args.profile = entries[0]["settings"].get("profile", args.profile)
@@ -59,7 +66,8 @@ def main():
         if args.action == "recover":
             if not args.entry or len(args.entry) != 1:
                 arguments.error("recover requires one --entry")
-            result = publishing_queue.recover_entry(youtube, args.source, args.entry[0], video_id=args.video_id, missing_playlist=args.missing_playlist, confirm_not_uploaded=args.confirm_not_uploaded)
+            result = publishing_queue.recover_entry(youtube, args.source, args.entry[0], video_id=args.video_id, missing_playlist=args.missing_playlist, confirm_not_uploaded=args.confirm_not_uploaded,
+                subtitle_index=args.subtitle_index, caption_id=args.caption_id, confirm_subtitle_missing=args.confirm_subtitle_missing)
         else:
             if args.action == "run":
                 publishing_queue.initialize_queue(plan, args.queue, ledger_path=args.ledger)

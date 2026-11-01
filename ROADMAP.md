@@ -33,7 +33,7 @@
 
 | F-22 | "ok do we have a tasks to configure upload of my videso to my channel with max flexibility" — "ok do it" | landed | Parent #145; #146 presets, #147 per-video configuration, #148 expanded metadata, #149 batch plans and #150 queue/recovery/duplicate protection. Existing F-21 jobs/uploader are reused; no live account writes authorized. |
 
-| F-23 | "Check issues for a new release, we should be adding subtitles to youtube videos" — "ok do it" | in progress | Parent #172; #173 adds owned-video caption listing and timed SRT/VTT upload/explicit replacement; #174 integrates subtitle settings and recovery into publishing. Transcription, translation and caption download remain deferred. |
+| F-23 | "Check issues for a new release, we should be adding subtitles to youtube videos" — "ok do it" | landed | Parent #172; #173/PR #175 add owned-video caption listing and timed SRT/VTT upload/explicit replacement; #174 integrates subtitle settings and per-track recovery into publishing. Offline gates and CI cover implementation; owner-approved G5 and independent milestone review remain next-release gates. Transcription, translation and caption download remain deferred. |
 
 ## Statuses
 

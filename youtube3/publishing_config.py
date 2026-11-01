@@ -6,12 +6,12 @@ from pathlib import Path
 import re
 import string
 
-from . import publishing_metadata
+from . import publishing_metadata, captions
 
 SCHEMA = "youtube3.publishing-presets.v1"
 FIELDS = {"profile", "expected_channel_id", "title", "description", "tags", "thumbnail", "privacy", "publish_at",
           "category_id", "made_for_kids", "retries", "variables", "title_template", "description_template", "thumbnail_template"}
-FIELDS |= publishing_metadata.FIELDS | {"notify_subscribers", "chunk_size"}
+FIELDS |= publishing_metadata.FIELDS | {"notify_subscribers", "chunk_size", "subtitles"}
 TEXT_FIELDS = {"profile", "expected_channel_id", "title", "description", "thumbnail", "publish_at", "category_id",
                "title_template", "description_template", "thumbnail_template"}
 
@@ -88,6 +88,11 @@ def validate_settings(settings):
     if "chunk_size" in settings and (isinstance(settings["chunk_size"], bool) or not isinstance(settings["chunk_size"], int)
                                       or settings["chunk_size"] < 262144 or settings["chunk_size"] % 262144):
         raise ConfigurationError("chunk_size must be a positive multiple of 256 KiB")
+    if settings.get("subtitles") is not None:
+        if not isinstance(settings["subtitles"], list):
+            raise ConfigurationError("subtitles must be a list of tracks or null")
+        for track in settings["subtitles"]:
+            captions.validate_settings(track)
     variables = settings.get("variables", {})
     if not isinstance(variables, dict) or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_]\w*", key)
             or not isinstance(value, (str, int)) or isinstance(value, bool) for key, value in variables.items()):
@@ -112,6 +117,8 @@ def settings_layer(settings, base_dir=None):
             if result.get(field) is not None:
                 value = Path(result[field]).expanduser()
                 result[field] = str(value if value.is_absolute() else Path(base_dir) / value)
+        for track in result.get("subtitles") or []:
+            track["file"] = str(local_path(track["file"], base_dir))
     return result
 
 

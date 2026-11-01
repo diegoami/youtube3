@@ -705,6 +705,69 @@ The write methods return `plan`, `applied` and `result` (the accepted track ID).
 steps; `CaptionError.outcome` distinguishes a refused request (`not_started`)
 from an uncertain result (`unknown`).
 
+### Subtitles in publishing jobs and batches
+
+Add a `subtitles` list to a preset or per-video/batch `settings` object:
+
+```yaml
+settings:
+  subtitles:
+    - file: subtitles/episode.en.srt
+      language: en
+      name: English
+      draft: false
+    - file: subtitles/episode.de.vtt
+      language: de
+      name: Deutsch
+```
+
+Paths are relative to the configuration that defines each track. A later settings
+layer replaces the entire list; `subtitles: []`, `subtitles: null` or
+`youtube3 publishing --config video.yaml --unset subtitles` clears inherited tracks.
+For an existing video's replacement, use `{file: revised.en.srt, caption_id: CAPTION_ID}`
+and optional `draft`; language/name are retained. New uploads cannot reference an
+existing caption ID. Duplicate insert language/name pairs or replacement IDs
+within a job are refused.
+
+The job preflights caption files before upload, then sends subtitles after metadata
+and before final visibility/scheduling. Each accepted track ID is checkpointed;
+resume skips completed tracks, even if their source files have been removed.
+Pause requests are checked between tracks. Files still needed for pending tracks
+must match their original fingerprint. Job/plan/queue/ledger outputs cannot
+replace subtitle inputs. Caption-enabled jobs use checkpoint schema v2; jobs
+without subtitles retain schema v1. Current code reads both; older code refuses v2.
+
+A refused request can be retried with normal resume. An interrupted/uncertain
+caption insert or replacement stops the job and blocks final publication. Inspect
+`youtube3 captions list VIDEO_ID --profile mybrand` and the actual track contents
+in Studio, then explicitly recover the 1-based subtitle index:
+
+```sh
+youtube3 publishing --resume job.json --profile mybrand --recover-subtitle 1 --recover-caption-id CAPTION_ID --apply
+# Only after verifying that an uncertain INSERT did not create a track:
+youtube3 publishing --resume job.json --profile mybrand --recover-subtitle 1 --confirm-subtitle-missing --apply
+# For a queued job, recover under the queue lock, then resume the queue:
+youtube3 publishing-batch recover queue.json --entry episode-7 --subtitle-index 1 --caption-id CAPTION_ID --profile mybrand --apply
+youtube3 publishing-batch resume queue.json --profile mybrand --apply
+```
+
+Queue recovery also accepts `--confirm-subtitle-missing` instead of `--caption-id`
+for a missing insert. A replacement needs its original inspected track ID.
+Recovery verifies video ownership, track ID, language/name for inserts and the
+intended draft state; it cannot verify uploaded text bytes. If persistence fails
+after acceptance, `PublishingJobError.job` includes any known caption IDs, while
+the on-disk `running` track still requires explicit recovery. No automatic
+reinsert occurs. Acceptance does not wait for YouTube processing or guarantee
+that the track is already visible; check its reported status and Studio before
+public release when that timing matters.
+
+Python: `plan_publishing_job(..., subtitles=[{"file": "episode.en.srt", "language": "en"}])`.
+`apply_publishing_job` accepts `recover_subtitle_index`, `recover_caption_id` and
+`confirm_subtitle_missing` during resume. `recover_subtitle(client, job, index,
+caption_id=..., confirm_missing=False)` returns a recovered copy without writing
+it; `publishing_queue.recover_entry` exposes `subtitle_index`, `caption_id` and
+`confirm_subtitle_missing` under its locks.
+
 ### Recoverable publishing jobs
 
 ```sh
@@ -716,7 +779,7 @@ youtube3 publishing --resume job.json --profile mybrand --apply
 Use `--video-id VIDEO_ID` instead of `--file` for an existing Studio upload.
 A thumbnail may be a supplied file or the output of the local artwork renderer.
 `--schedule ISO_TIME` keeps the video private until its future publication time.
-Preview exposes upload, thumbnail, metadata and publication stages without an
+Preview exposes upload, thumbnail, metadata, optional subtitles and publication stages without an
 upload, account write or checkpoint file. Applying a new job requires a new
 `--job` path; resume uses its saved settings and channel/profile.
 

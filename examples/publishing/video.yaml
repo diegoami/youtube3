@@ -10,3 +10,9 @@ settings:
   tags: [my-series, episode-7]
   made_for_kids: false
   privacy: private
+  # Optional timed subtitle tracks (paths relative to this configuration):
+  # subtitles:
+  #   - file: subtitles/episode.en.srt
+  #     language: en
+  #     name: English
+  #     draft: false

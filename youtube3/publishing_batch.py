@@ -119,6 +119,7 @@ def save_plan(plan, path):
     for entry in plan["entries"]:
         job = entry["job"]
         inputs = ([job["upload"]["file"]["path"]] if job["upload"] else []) + ([job["thumbnail"]["path"]] if job["thumbnail"] else [])
+        inputs.extend(jobs.subtitle_inputs(job))
         if any(Path(path).resolve() == Path(source).resolve() for source in inputs):
             raise ValueError("Plan destination must differ from input media")
     artwork.save_bytes(path, (json.dumps(plan, indent=2) + "\n").encode("utf-8"))
